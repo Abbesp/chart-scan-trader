@@ -7,17 +7,19 @@ import { StrategySelector, StrategyType } from '@/components/StrategySelector';
 import { AnalysisResults } from '@/components/AnalysisResults';
 import { TradeJournal, Trade } from '@/components/TradeJournal';
 import { TradingStats } from '@/components/TradingStats';
-import { MarketSelector, CurrencyType, TimeframeType } from '@/components/MarketSelector';
+import { MarketSelector, CurrencyType, TimeframeType, TradingType } from '@/components/MarketSelector';
 import { PricePrediction } from '@/components/PricePrediction';
 import { CryptoNews } from '@/components/CryptoNews';
 import { SMCAnalysis } from '@/components/SMCAnalysis';
 import { ICTAnalysis } from '@/components/ICTAnalysis';
+import { DataImport } from '@/components/DataImport';
 import { toast } from 'sonner';
 
 const Index = () => {
   const [selectedStrategy, setSelectedStrategy] = useState<StrategyType>('swing');
   const [selectedCurrency, setSelectedCurrency] = useState<CurrencyType>('BTC');
   const [selectedTimeframe, setSelectedTimeframe] = useState<TimeframeType>('4h');
+  const [selectedTradingType, setSelectedTradingType] = useState<TradingType>('spot');
   const [uploadedImage, setUploadedImage] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
@@ -203,8 +205,10 @@ const Index = () => {
                 <MarketSelector 
                   selectedCurrency={selectedCurrency}
                   selectedTimeframe={selectedTimeframe}
+                  selectedTradingType={selectedTradingType}
                   onCurrencyChange={setSelectedCurrency}
                   onTimeframeChange={setSelectedTimeframe}
+                  onTradingTypeChange={setSelectedTradingType}
                 />
               </section>
 
@@ -292,6 +296,15 @@ const Index = () => {
                   />
                 </section>
               )}
+
+              {/* Data Import */}
+              <section>
+                <DataImport 
+                  currency={selectedCurrency} 
+                  timeframe={selectedTimeframe}
+                  tradingType={selectedTradingType}
+                />
+              </section>
 
               {/* Market News */}
               <section>

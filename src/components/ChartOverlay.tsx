@@ -145,19 +145,29 @@ export const ChartOverlay = ({ imageUrl, analysisData }: ChartOverlayProps) => {
         {/* Entry label */}
         <rect
           x="45"
-          y={y - 12}
-          width="90"
-          height="24"
+          y={y - 16}
+          width="140"
+          height="32"
           fill={isLong ? '#22c55e' : '#ef4444'}
-          rx="4"
-          opacity="0.9"
+          rx="6"
+          opacity="0.95"
         />
         
         <text
           x="55"
-          y={y + 4}
+          y={y - 4}
           fill="white"
-          fontSize="12"
+          fontSize="11"
+          fontWeight="bold"
+        >
+          ENTRY POINT
+        </text>
+        
+        <text
+          x="55"
+          y={y + 10}
+          fill="white"
+          fontSize="13"
           fontWeight="bold"
         >
           {isLong ? 'LONG' : 'SHORT'} ${analysisData.entry.toFixed(2)}

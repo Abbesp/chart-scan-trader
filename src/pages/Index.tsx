@@ -9,6 +9,9 @@ import { TradeJournal, Trade } from '@/components/TradeJournal';
 import { TradingStats } from '@/components/TradingStats';
 import { MarketSelector, CurrencyType, TimeframeType } from '@/components/MarketSelector';
 import { PricePrediction } from '@/components/PricePrediction';
+import { CryptoNews } from '@/components/CryptoNews';
+import { SMCAnalysis } from '@/components/SMCAnalysis';
+import { ICTAnalysis } from '@/components/ICTAnalysis';
 import { toast } from 'sonner';
 
 const Index = () => {
@@ -289,6 +292,21 @@ const Index = () => {
                   />
                 </section>
               )}
+
+              {/* Market News */}
+              <section>
+                <CryptoNews selectedCurrency={selectedCurrency} />
+              </section>
+
+              {/* SMC Analysis */}
+              <section>
+                <SMCAnalysis currency={selectedCurrency} timeframe={selectedTimeframe} />
+              </section>
+
+              {/* ICT Analysis */}
+              <section>
+                <ICTAnalysis currency={selectedCurrency} timeframe={selectedTimeframe} />
+              </section>
 
               {/* Analysis Results */}
               {analysisResult && (

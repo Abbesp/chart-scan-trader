@@ -7,13 +7,18 @@ import { StrategySelector, StrategyType } from '@/components/StrategySelector';
 import { AnalysisResults } from '@/components/AnalysisResults';
 import { TradeJournal, Trade } from '@/components/TradeJournal';
 import { TradingStats } from '@/components/TradingStats';
+import { MarketSelector, CurrencyType, TimeframeType } from '@/components/MarketSelector';
+import { PricePrediction } from '@/components/PricePrediction';
 import { toast } from 'sonner';
 
 const Index = () => {
   const [selectedStrategy, setSelectedStrategy] = useState<StrategyType>('swing');
+  const [selectedCurrency, setSelectedCurrency] = useState<CurrencyType>('USD');
+  const [selectedTimeframe, setSelectedTimeframe] = useState<TimeframeType>('4h');
   const [uploadedImage, setUploadedImage] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [predictionResult, setPredictionResult] = useState<any>(null);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [showJournal, setShowJournal] = useState(false);
 
@@ -58,27 +63,52 @@ const Index = () => {
     
     // Simulate AI analysis delay
     setTimeout(() => {
-      const mockResult = {
+      const currentPrice = selectedCurrency === 'BTC' ? 45000 : selectedCurrency === 'EUR' ? 1.0850 : 156.75;
+      const priceMultiplier = selectedCurrency === 'BTC' ? 1000 : selectedCurrency === 'EUR' ? 0.01 : 1;
+      const direction = Math.random() > 0.5 ? 'bullish' : 'bearish' as 'bullish' | 'bearish';
+      const changePercent = (Math.random() * 4 + 1) * (direction === 'bullish' ? 1 : -1);
+      const predictedPrice = currentPrice * (1 + changePercent / 100);
+      
+      const mockAnalysisResult = {
         strategy: selectedStrategy,
-        confidence: Math.floor(Math.random() * 30) + 70, // 70-100%
+        confidence: Math.floor(Math.random() * 30) + 70,
         pattern: selectedStrategy === 'swing' ? 'Bull Flag' : 'Ascending Triangle',
-        direction: Math.random() > 0.5 ? 'bullish' : 'bearish' as 'bullish' | 'bearish',
-        entry: 156.75,
-        stopLoss: 152.30,
-        takeProfit: 164.20,
+        direction,
+        entry: currentPrice,
+        stopLoss: direction === 'bullish' ? currentPrice * 0.97 : currentPrice * 1.03,
+        takeProfit: direction === 'bullish' ? currentPrice * 1.05 : currentPrice * 0.95,
         riskReward: selectedStrategy === 'swing' ? '1:3.2' : '1:1.8',
-        timeframe: selectedStrategy === 'swing' ? '4H' : '5M',
+        timeframe: selectedTimeframe,
         volume: ['high', 'medium', 'low'][Math.floor(Math.random() * 3)] as 'high' | 'medium' | 'low',
         estimatedEntryTime: selectedStrategy === 'swing' ? '2-4 hours' : '5-15 minutes',
         keyLevels: {
-          support: [152.30, 148.50, 145.00],
-          resistance: [161.20, 164.20, 168.50]
+          support: [currentPrice * 0.97, currentPrice * 0.95, currentPrice * 0.93],
+          resistance: [currentPrice * 1.03, currentPrice * 1.05, currentPrice * 1.07]
         }
       };
+
+      const mockPredictionResult = {
+        currentPrice,
+        predictedPrice,
+        priceChange: predictedPrice - currentPrice,
+        percentageChange: changePercent,
+        direction,
+        confidence: Math.floor(Math.random() * 30) + 70,
+        timeToTarget: selectedTimeframe === '1m' ? '1-2 minutes' : 
+                     selectedTimeframe === '5m' ? '5-10 minutes' :
+                     selectedTimeframe === '1h' ? '1-2 hours' : '4-8 hours',
+        keyEvents: [
+          'Federal Reserve meeting scheduled',
+          'High trading volume detected',
+          'Technical resistance breakout expected'
+        ],
+        volatility: ['low', 'medium', 'high'][Math.floor(Math.random() * 3)] as 'low' | 'medium' | 'high'
+      };
       
-      setAnalysisResult(mockResult);
+      setAnalysisResult(mockAnalysisResult);
+      setPredictionResult(mockPredictionResult);
       setIsAnalyzing(false);
-      toast.success('Analysis complete! Trade signal generated.');
+      toast.success('Analysis complete! Price prediction generated.');
     }, 3000);
   };
 
@@ -156,6 +186,22 @@ const Index = () => {
           ) : (
             /* Analysis View */
             <>
+              {/* Market Selection */}
+              <section>
+                <div className="mb-6">
+                  <h2 className="text-xl font-semibold mb-2">Market Configuration</h2>
+                  <p className="text-muted-foreground">
+                    Select currency pair and timeframe for price analysis and prediction
+                  </p>
+                </div>
+                <MarketSelector 
+                  selectedCurrency={selectedCurrency}
+                  selectedTimeframe={selectedTimeframe}
+                  onCurrencyChange={setSelectedCurrency}
+                  onTimeframeChange={setSelectedTimeframe}
+                />
+              </section>
+
               {/* Strategy Selection */}
               <section>
                 <div className="mb-6">
@@ -196,10 +242,10 @@ const Index = () => {
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-xl font-semibold mb-2">Ready for Analysis</h3>
-                    <p className="text-muted-foreground mb-6">
-                      Click below to analyze your chart with our AI engine
-                    </p>
+                   <h3 className="text-xl font-semibold mb-2">Ready for Analysis</h3>
+                   <p className="text-muted-foreground mb-6">
+                     Analyze your {selectedCurrency} chart and predict price movement on {selectedTimeframe} timeframe
+                   </p>
                   </div>
                   <Button
                     onClick={simulateAnalysis}
@@ -212,26 +258,43 @@ const Index = () => {
                         <Zap className="h-5 w-5 mr-2 animate-spin" />
                         Analyzing Chart...
                       </>
-                    ) : (
-                      <>
-                        <Brain className="h-5 w-5 mr-2" />
-                        Analyze Chart
-                      </>
-                    )}
+                     ) : (
+                       <>
+                         <Brain className="h-5 w-5 mr-2" />
+                         Analyze & Predict Price
+                       </>
+                     )}
                   </Button>
                 </div>
               </Card>
             </section>
           )}
 
+              {/* Price Prediction Results */}
+              {predictionResult && (
+                <section>
+                  <div className="mb-6">
+                    <h2 className="text-xl font-semibold mb-2">Price Prediction</h2>
+                    <p className="text-muted-foreground">
+                      AI-powered price prediction for {selectedCurrency} on {selectedTimeframe} timeframe
+                    </p>
+                  </div>
+                  <PricePrediction 
+                    currency={selectedCurrency}
+                    timeframe={selectedTimeframe}
+                    data={predictionResult}
+                  />
+                </section>
+              )}
+
               {/* Analysis Results */}
               {analysisResult && (
                 <section>
                   <div className="mb-6 flex justify-between items-center">
                     <div>
-                      <h2 className="text-xl font-semibold mb-2">Analysis Results</h2>
+                      <h2 className="text-xl font-semibold mb-2">Chart Analysis</h2>
                       <p className="text-muted-foreground">
-                        AI has analyzed your chart and generated trading recommendations
+                        Technical analysis and trading signals for your chart
                       </p>
                     </div>
                     <Button

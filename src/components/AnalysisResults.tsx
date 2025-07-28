@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
+import { ChartOverlay } from './ChartOverlay';
 import { StrategyType } from './StrategySelector';
 
 interface AnalysisData {
@@ -178,17 +179,16 @@ export const AnalysisResults = ({ data, imageUrl }: AnalysisResultsProps) => {
             <Clock className="h-5 w-5 text-primary" />
             Analyzed Chart
           </h4>
-          <div className="relative">
-            <img 
-              src={imageUrl} 
-              alt="Analyzed chart" 
-              className="w-full h-auto rounded-lg border"
-            />
-            {/* Overlay markers would go here in a real implementation */}
-            <div className="absolute top-4 right-4 bg-card/90 backdrop-blur-sm rounded-lg p-2">
-              <Badge className="bg-gradient-primary">AI Analysis Complete</Badge>
-            </div>
-          </div>
+          <ChartOverlay 
+            imageUrl={imageUrl}
+            analysisData={{
+              direction: data.direction,
+              entry: data.entry,
+              stopLoss: data.stopLoss,
+              takeProfit: data.takeProfit,
+              keyLevels: data.keyLevels
+            }}
+          />
         </Card>
       )}
     </div>

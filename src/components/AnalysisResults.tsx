@@ -17,6 +17,7 @@ interface AnalysisData {
   riskReward: string;
   timeframe: string;
   volume: 'high' | 'medium' | 'low';
+  estimatedEntryTime: string;
   keyLevels: {
     support: number[];
     resistance: number[];
@@ -127,7 +128,7 @@ export const AnalysisResults = ({ data, imageUrl }: AnalysisResultsProps) => {
           </h4>
 
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="p-3 rounded-lg bg-secondary">
                 <div className="text-sm text-muted-foreground">Timeframe</div>
                 <div className="text-lg font-bold">{data.timeframe}</div>
@@ -140,6 +141,10 @@ export const AnalysisResults = ({ data, imageUrl }: AnalysisResultsProps) => {
                 }`}>
                   {data.volume.toUpperCase()}
                 </div>
+              </div>
+              <div className="p-3 rounded-lg bg-secondary">
+                <div className="text-sm text-muted-foreground">Est. Entry</div>
+                <div className="text-lg font-bold text-warning">{data.estimatedEntryTime}</div>
               </div>
             </div>
 

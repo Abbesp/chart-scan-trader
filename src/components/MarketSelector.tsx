@@ -1,9 +1,9 @@
-import { DollarSign, Euro, Clock } from 'lucide-react';
+import { DollarSign, Euro, Clock, Bitcoin, Coins } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 
-export type CurrencyType = 'USD' | 'EUR' | 'GBP' | 'JPY' | 'BTC' | 'ETH';
+export type CurrencyType = 'BTC' | 'ETH' | 'BNB' | 'SOL' | 'ADA' | 'DOT' | 'MATIC' | 'AVAX';
 export type TimeframeType = '1m' | '5m' | '15m' | '1h' | '4h' | '1d' | '1w';
 
 interface MarketSelectorProps {
@@ -14,12 +14,14 @@ interface MarketSelectorProps {
 }
 
 const currencies = [
-  { value: 'USD' as CurrencyType, label: 'USD/USD', icon: DollarSign },
-  { value: 'EUR' as CurrencyType, label: 'EUR/USD', icon: Euro },
-  { value: 'GBP' as CurrencyType, label: 'GBP/USD', icon: DollarSign },
-  { value: 'JPY' as CurrencyType, label: 'USD/JPY', icon: DollarSign },
-  { value: 'BTC' as CurrencyType, label: 'BTC/USD', icon: DollarSign },
-  { value: 'ETH' as CurrencyType, label: 'ETH/USD', icon: DollarSign },
+  { value: 'BTC' as CurrencyType, label: 'BTC/USDT', icon: Bitcoin },
+  { value: 'ETH' as CurrencyType, label: 'ETH/USDT', icon: Coins },
+  { value: 'BNB' as CurrencyType, label: 'BNB/USDT', icon: Coins },
+  { value: 'SOL' as CurrencyType, label: 'SOL/USDT', icon: Coins },
+  { value: 'ADA' as CurrencyType, label: 'ADA/USDT', icon: Coins },
+  { value: 'DOT' as CurrencyType, label: 'DOT/USDT', icon: Coins },
+  { value: 'MATIC' as CurrencyType, label: 'MATIC/USDT', icon: Coins },
+  { value: 'AVAX' as CurrencyType, label: 'AVAX/USDT', icon: Coins },
 ];
 
 const timeframes = [
@@ -43,10 +45,10 @@ export const MarketSelector = ({
       <Card className="p-6">
         <h4 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <DollarSign className="h-5 w-5 text-primary" />
-          Select Currency Pair
+          Select Crypto Pair
         </h4>
         
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-4 gap-3">
           {currencies.map((currency) => {
             const IconComponent = currency.icon;
             return (

@@ -25,7 +25,7 @@ interface PricePredictionProps {
 export const PricePrediction = ({ currency, timeframe, data }: PricePredictionProps) => {
   const isPositive = data.direction === 'bullish';
   const formatPrice = (price: number) => {
-    if (currency === 'BTC' || currency === 'ETH') {
+    if (currency === 'BTC') {
       return `$${price.toLocaleString()}`;
     }
     return `$${price.toFixed(4)}`;
@@ -42,7 +42,7 @@ export const PricePrediction = ({ currency, timeframe, data }: PricePredictionPr
             </div>
             <div>
               <h3 className="text-xl font-bold">
-                {currency} Price Prediction
+                {currency}/USDT Price Prediction
               </h3>
               <p className="text-muted-foreground">
                 {timeframe} Analysis

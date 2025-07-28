@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 
 const Index = () => {
   const [selectedStrategy, setSelectedStrategy] = useState<StrategyType>('swing');
-  const [selectedCurrency, setSelectedCurrency] = useState<CurrencyType>('USD');
+  const [selectedCurrency, setSelectedCurrency] = useState<CurrencyType>('BTC');
   const [selectedTimeframe, setSelectedTimeframe] = useState<TimeframeType>('4h');
   const [uploadedImage, setUploadedImage] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -63,8 +63,11 @@ const Index = () => {
     
     // Simulate AI analysis delay
     setTimeout(() => {
-      const currentPrice = selectedCurrency === 'BTC' ? 45000 : selectedCurrency === 'EUR' ? 1.0850 : 156.75;
-      const priceMultiplier = selectedCurrency === 'BTC' ? 1000 : selectedCurrency === 'EUR' ? 0.01 : 1;
+      const currentPrice = selectedCurrency === 'BTC' ? 45000 : 
+                        selectedCurrency === 'ETH' ? 2500 : 
+                        selectedCurrency === 'BNB' ? 350 : 
+                        selectedCurrency === 'SOL' ? 85 : 25;
+      const priceMultiplier = selectedCurrency === 'BTC' ? 1000 : selectedCurrency === 'ETH' ? 100 : 1;
       const direction = Math.random() > 0.5 ? 'bullish' : 'bearish' as 'bullish' | 'bearish';
       const changePercent = (Math.random() * 4 + 1) * (direction === 'bullish' ? 1 : -1);
       const predictedPrice = currentPrice * (1 + changePercent / 100);
@@ -123,9 +126,9 @@ const Index = () => {
                 <Brain className="h-8 w-8 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold">SnapTrader AI</h1>
+                <h1 className="text-2xl font-bold">SnapTrader AI - MEXC</h1>
                 <p className="text-muted-foreground">
-                  AI-Powered Chart Analysis & Trading Signals
+                  AI-Powered Crypto Chart Analysis & Trading Signals for MEXC Exchange
                 </p>
               </div>
             </div>
@@ -189,9 +192,9 @@ const Index = () => {
               {/* Market Selection */}
               <section>
                 <div className="mb-6">
-                  <h2 className="text-xl font-semibold mb-2">Market Configuration</h2>
+                  <h2 className="text-xl font-semibold mb-2">MEXC Crypto Trading</h2>
                   <p className="text-muted-foreground">
-                    Select currency pair and timeframe for price analysis and prediction
+                    Select crypto pair and timeframe for MEXC exchange analysis
                   </p>
                 </div>
                 <MarketSelector 
@@ -242,9 +245,9 @@ const Index = () => {
                     </div>
                   </div>
                   <div>
-                   <h3 className="text-xl font-semibold mb-2">Ready for Analysis</h3>
+                   <h3 className="text-xl font-semibold mb-2">Ready for MEXC Analysis</h3>
                    <p className="text-muted-foreground mb-6">
-                     Analyze your {selectedCurrency} chart and predict price movement on {selectedTimeframe} timeframe
+                     Analyze your {selectedCurrency}/USDT chart and predict price movement on {selectedTimeframe} timeframe
                    </p>
                   </div>
                   <Button
@@ -274,9 +277,9 @@ const Index = () => {
               {predictionResult && (
                 <section>
                   <div className="mb-6">
-                    <h2 className="text-xl font-semibold mb-2">Price Prediction</h2>
+                    <h2 className="text-xl font-semibold mb-2">MEXC Price Prediction</h2>
                     <p className="text-muted-foreground">
-                      AI-powered price prediction for {selectedCurrency} on {selectedTimeframe} timeframe
+                      AI-powered price prediction for {selectedCurrency}/USDT on {selectedTimeframe} timeframe
                     </p>
                   </div>
                   <PricePrediction 

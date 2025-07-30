@@ -13,6 +13,7 @@ import { CryptoNews } from '@/components/CryptoNews';
 import { SMCAnalysis } from '@/components/SMCAnalysis';
 import { ICTAnalysis } from '@/components/ICTAnalysis';
 import { DataImport } from '@/components/DataImport';
+import { AutoTradingSignals } from '@/components/AutoTradingSignals';
 import { toast } from 'sonner';
 
 const Index = () => {
@@ -226,59 +227,20 @@ const Index = () => {
                 />
               </section>
 
-          {/* Image Upload */}
-          <section>
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold mb-2">Upload Chart</h2>
-              <p className="text-muted-foreground">
-                Upload a screenshot of your trading chart for AI analysis
-              </p>
-            </div>
-            <ImageUpload 
-              onImageUploaded={handleImageUpload}
-              uploadedImage={uploadedImage}
-              onRemoveImage={handleRemoveImage}
-            />
-          </section>
-
-          {/* Analysis Button */}
-          {uploadedImage && !analysisResult && (
-            <section className="text-center">
-              <Card className="p-8 bg-gradient-chart">
-                <div className="space-y-4">
-                  <div className="flex justify-center">
-                    <div className="p-4 rounded-full bg-gradient-primary">
-                      <BarChart3 className="h-8 w-8 text-primary-foreground" />
-                    </div>
-                  </div>
-                  <div>
-                   <h3 className="text-xl font-semibold mb-2">Ready for MEXC Analysis</h3>
-                   <p className="text-muted-foreground mb-6">
-                     Analyze your {selectedCurrency}/USDT chart and predict price movement on {selectedTimeframe} timeframe
-                   </p>
-                  </div>
-                  <Button
-                    onClick={simulateAnalysis}
-                    disabled={isAnalyzing}
-                    size="lg"
-                    className="bg-gradient-primary px-8"
-                  >
-                    {isAnalyzing ? (
-                      <>
-                        <Zap className="h-5 w-5 mr-2 animate-spin" />
-                        Analyzing Chart...
-                      </>
-                     ) : (
-                       <>
-                         <Brain className="h-5 w-5 mr-2" />
-                         Analyze & Predict Price
-                       </>
-                     )}
-                  </Button>
+              {/* Auto Trading Signals */}
+              <section>
+                <div className="mb-6">
+                  <h2 className="text-xl font-semibold mb-2">Automatiska Trading Signaler</h2>
+                  <p className="text-muted-foreground">
+                    AI analyserar MEXC data kontinuerligt och genererar köp/sälj signaler automatiskt
+                  </p>
                 </div>
-              </Card>
-            </section>
-          )}
+                <AutoTradingSignals 
+                  selectedCurrency={selectedCurrency}
+                  selectedTimeframe={selectedTimeframe}
+                  tradingType={selectedTradingType}
+                />
+              </section>
 
               {/* Price Prediction Results */}
               {predictionResult && (

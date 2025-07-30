@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, BarChart3, Play, Pause, RefreshCw } from "lucide-react";
+import { TrendingUp, TrendingDown, BarChart3, Play, Pause, RefreshCw, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+
+// Temporarily disable Supabase import to prevent crashes
+// import { supabase } from "@/integrations/supabase/client";
 
 interface TradingSignal {
   id: string;
@@ -37,8 +39,13 @@ export const AutoTradingSignals: React.FC<AutoTradingSignalsProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  // Fetch signals from database
+  // Fetch signals from database - temporarily disabled
   const fetchSignals = async () => {
+    // Temporarily disabled until Supabase is properly configured
+    console.log('fetchSignals temporarily disabled - Supabase not configured');
+    return;
+    
+    /* 
     try {
       const { data, error } = await supabase
         .from('trading_signals')
@@ -53,12 +60,21 @@ export const AutoTradingSignals: React.FC<AutoTradingSignalsProps> = ({
     } catch (error) {
       console.error('Error fetching signals:', error);
     }
+    */
   };
 
-  // Generate new signal
+  // Generate new signal - temporarily disabled  
   const generateSignal = async () => {
     setIsLoading(true);
     try {
+      // Temporarily show placeholder until Supabase is configured
+      toast({
+        title: "Supabase Integration Required",
+        description: "Please ensure your Supabase integration is properly configured with environment variables.",
+        variant: "destructive"
+      });
+      
+      /* 
       const response = await supabase.functions.invoke('mexc-data', {
         body: {
           symbol: selectedCurrency,
@@ -77,10 +93,11 @@ export const AutoTradingSignals: React.FC<AutoTradingSignalsProps> = ({
       });
 
       await fetchSignals(); // Refresh signals list
+      */
     } catch (error) {
       toast({
         title: "Fel",
-        description: "Kunde inte generera signal. Kontrollera internetanslutning.",
+        description: "Supabase integration krävs för automatiska signaler.",
         variant: "destructive"
       });
     } finally {
@@ -164,9 +181,14 @@ export const AutoTradingSignals: React.FC<AutoTradingSignalsProps> = ({
         )}
 
         {signals.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>Inga signaler än. Klicka "Generera Nu" för att få din första signal.</p>
+          <div className="text-center py-8">
+            <AlertCircle className="h-12 w-12 mx-auto mb-4 text-yellow-500" />
+            <p className="text-muted-foreground mb-4">
+              Supabase integration krävs för automatiska trading signaler.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Kontrollera att VITE_SUPABASE_URL och VITE_SUPABASE_ANON_KEY är konfigurerade.
+            </p>
           </div>
         ) : (
           <div className="space-y-4">

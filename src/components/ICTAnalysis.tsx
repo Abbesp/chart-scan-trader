@@ -22,10 +22,10 @@ interface ICTAnalysisProps {
 const mockICTData: ICTAnalysisData = {
   signals: [
     {
-      signal: 'BUY',
-      entry: 43850,
-      stopLoss: 43200,
-      takeProfit: 45100
+      signal: 'SELL',
+      entry: 0.2634,
+      stopLoss: 0.2687,
+      takeProfit: 0.2476
     }
   ]
 };
@@ -70,19 +70,19 @@ export const ICTAnalysis = ({ currency, timeframe }: ICTAnalysisProps) => {
                 <div className="text-center">
                   <div className="text-xs text-muted-foreground mb-1">ENTRY</div>
                   <div className="text-lg font-semibold">
-                    ${signal.entry.toLocaleString()}
+                    ${signal.entry.toFixed(4)}
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="text-xs text-muted-foreground mb-1">SL</div>
                   <div className="text-lg font-semibold text-loss">
-                    ${signal.stopLoss.toLocaleString()}
+                    ${signal.stopLoss.toFixed(4)}
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="text-xs text-muted-foreground mb-1">TP</div>
                   <div className="text-lg font-semibold text-profit">
-                    ${signal.takeProfit.toLocaleString()}
+                    ${signal.takeProfit.toFixed(4)}
                   </div>
                 </div>
               </div>

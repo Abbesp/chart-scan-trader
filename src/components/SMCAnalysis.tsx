@@ -23,9 +23,9 @@ const mockSMCData: SMCAnalysisData = {
   signals: [
     {
       signal: 'BUY',
-      entry: 43250,
-      stopLoss: 42800,
-      takeProfit: 44500
+      entry: 0.2634,
+      stopLoss: 0.2581,
+      takeProfit: 0.2792
     }
   ]
 };
@@ -70,19 +70,19 @@ export const SMCAnalysis = ({ currency, timeframe }: SMCAnalysisProps) => {
                 <div className="text-center">
                   <div className="text-xs text-muted-foreground mb-1">ENTRY</div>
                   <div className="text-lg font-semibold">
-                    ${signal.entry.toLocaleString()}
+                    ${signal.entry.toFixed(4)}
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="text-xs text-muted-foreground mb-1">SL</div>
                   <div className="text-lg font-semibold text-loss">
-                    ${signal.stopLoss.toLocaleString()}
+                    ${signal.stopLoss.toFixed(4)}
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="text-xs text-muted-foreground mb-1">TP</div>
                   <div className="text-lg font-semibold text-profit">
-                    ${signal.takeProfit.toLocaleString()}
+                    ${signal.takeProfit.toFixed(4)}
                   </div>
                 </div>
               </div>

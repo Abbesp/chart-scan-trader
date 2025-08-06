@@ -4,6 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useState } from 'react';
+import { toast } from 'sonner';
+
+// MEXC API Keys - VARNING: Dessa bör flyttas till säker backend senare
+const MEXC_API_KEYS = {
+  secret: '4aab87c1d148494386ef5d5d191e9e20',
+  accessKey: 'mx0vglc20OzMqpRgDx'
+};
 
 interface DataImportProps {
   currency: string;
@@ -20,18 +27,56 @@ export const DataImport = ({ currency, timeframe, tradingType }: DataImportProps
     setIsImporting(true);
     setImportProgress(0);
 
-    // Simulate data import progress
-    const progressInterval = setInterval(() => {
-      setImportProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(progressInterval);
-          setIsImporting(false);
-          setLastImport(new Date());
-          return 100;
-        }
-        return prev + 10;
+    try {
+      // Create MEXC API signature for authentication
+      const timestamp = Date.now();
+      const symbol = `${currency}USDT`;
+      
+      setImportProgress(25);
+
+      // MEXC API endpoint
+      const baseUrl = tradingType === 'futures' 
+        ? 'https://contract.mexc.com/api/v1/contract/kline'
+        : 'https://api.mexc.com/api/v3/klines';
+      
+      const params = new URLSearchParams({
+        symbol,
+        interval: timeframe,
+        limit: '100'
       });
-    }, 200);
+
+      setImportProgress(50);
+
+      // Fetch data from MEXC
+      const response = await fetch(`${baseUrl}?${params}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`MEXC API Error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setImportProgress(75);
+
+      // Simulate processing time
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      setImportProgress(100);
+      setLastImport(new Date());
+      
+      toast.success(`Importerade ${data.length} datapunkter från MEXC API`);
+      console.log('MEXC Data:', data);
+      
+    } catch (error) {
+      console.error('Import error:', error);
+      toast.error('Fel vid import av data från MEXC API');
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   return (

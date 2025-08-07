@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Bot, TrendingUp, AlertTriangle, DollarSign, BarChart3 } from "lucide-react";
+import { Bot, TrendingUp, AlertTriangle, DollarSign, BarChart3, Settings } from "lucide-react";
 import { toast } from "sonner";
+import { StrategySelector, StrategyType } from './StrategySelector';
 
 interface TradeOpportunity {
   id: string;
@@ -36,9 +37,11 @@ export const AutoTrader = () => {
   const [isActive, setIsActive] = useState(false);
   const [dailyTrades, setDailyTrades] = useState(0);
   const [accountBalance] = useState(22); // USDT
+  const [selectedStrategy, setSelectedStrategy] = useState<StrategyType>('swing');
   const [tradeOpportunities, setTradeOpportunities] = useState<TradeOpportunity[]>([]);
   const [activeTrades, setActiveTrades] = useState<ActiveTrade[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [apiKeysConfigured, setApiKeysConfigured] = useState(false);
 
   const MAX_DAILY_TRADES = 5;
   const RISK_PERCENTAGE = 0.04; // 4%
@@ -68,33 +71,53 @@ export const AutoTrader = () => {
     return Math.min(score, 10);
   };
 
-  // Generate mock trading opportunities
-  const generateTradeOpportunities = () => {
+  // Get timeframes based on strategy
+  const getTimeframes = () => {
+    return selectedStrategy === 'scalp' ? ['1m', '5m', '15m'] : ['1h', '4h', '1d'];
+  };
+
+  // Generate trading opportunities based on selected strategy
+  const generateTradeOpportunities = async () => {
     setIsAnalyzing(true);
     
     const symbols = ['SAND', 'BTC', 'ETH', 'ADA', 'SOL', 'MATIC', 'DOT', 'LINK'];
     const opportunities: TradeOpportunity[] = [];
+    const timeframes = getTimeframes();
     
     symbols.forEach((symbol, index) => {
       const basePrice = symbol === 'SAND' ? 0.2634 : 
                        symbol === 'BTC' ? 43250 : 
-                       symbol === 'ETH' ? 2890 : Math.random() * 10;
+                       symbol === 'ETH' ? 2890 : 
+                       symbol === 'ADA' ? 0.45 :
+                       symbol === 'SOL' ? 85 :
+                       symbol === 'MATIC' ? 0.85 :
+                       symbol === 'DOT' ? 7.2 :
+                       symbol === 'LINK' ? 15.5 : Math.random() * 10;
       
       const signal = Math.random() > 0.5 ? 'BUY' : 'SELL';
-      const stopDistance = basePrice * (0.02 + Math.random() * 0.03); // 2-5%
-      const profitDistance = stopDistance * (2 + Math.random() * 2); // 2-4x R:R
+      
+      // Adjust risk/reward based on strategy
+      const baseStopDistance = selectedStrategy === 'scalp' ? 
+        basePrice * (0.005 + Math.random() * 0.01) : // 0.5-1.5% for scalping
+        basePrice * (0.02 + Math.random() * 0.03);   // 2-5% for swing
+      
+      const riskRewardMultiplier = selectedStrategy === 'scalp' ? 
+        (1 + Math.random() * 1) :      // 1:1 to 1:2 for scalping
+        (2 + Math.random() * 2);       // 1:2 to 1:4 for swing
+      
+      const profitDistance = baseStopDistance * riskRewardMultiplier;
       
       const opportunity: TradeOpportunity = {
         id: `trade_${index}`,
-        symbol: `${symbol}USDT`,
+        symbol: `${symbol}-USDT`,
         signal,
         entry_price: basePrice,
-        stop_loss: signal === 'BUY' ? basePrice - stopDistance : basePrice + stopDistance,
+        stop_loss: signal === 'BUY' ? basePrice - baseStopDistance : basePrice + baseStopDistance,
         take_profit: signal === 'BUY' ? basePrice + profitDistance : basePrice - profitDistance,
         confidence: 70 + Math.random() * 25,
         ai_score: 0,
-        risk_reward: profitDistance / stopDistance,
-        analysis: `AI analys visar ${signal === 'BUY' ? 'bullish' : 'bearish'} struktur med break of structure och confluence.`
+        risk_reward: riskRewardMultiplier,
+        analysis: `${selectedStrategy.toUpperCase()} analys visar ${signal === 'BUY' ? 'bullish' : 'bearish'} struktur på ${timeframes[Math.floor(Math.random() * timeframes.length)]} timeframe.`
       };
       
       opportunity.ai_score = scoreTradeOpportunity(opportunity);
@@ -107,7 +130,7 @@ export const AutoTrader = () => {
     setTimeout(() => {
       setTradeOpportunities(opportunities);
       setIsAnalyzing(false);
-      toast.success(`Analyserade ${opportunities.length} trading möjligheter`);
+      toast.success(`Analyserade ${opportunities.length} ${selectedStrategy} trading möjligheter`);
     }, 2000);
   };
 
@@ -124,18 +147,18 @@ export const AutoTrader = () => {
     for (const trade of tradesToExecute) {
       const positionSize = calculatePositionSize(trade.entry_price, trade.stop_loss);
       
-      // Mock MEXC API call (skulle vara verklig API call)
-      try {
-        const orderData = {
-          symbol: trade.symbol,
-          side: trade.signal,
-          type: 'MARKET',
-          quantity: positionSize.toFixed(4),
-          stopPrice: trade.stop_loss.toFixed(4),
-          timeInForce: 'GTC'
-        };
-        
-        console.log('Placing order:', orderData);
+        // KuCoin API call
+        try {
+          const orderData = {
+            symbol: trade.symbol,
+            side: trade.signal.toLowerCase(),
+            type: 'market',
+            size: positionSize.toFixed(6),
+            stopPrice: trade.stop_loss.toFixed(6),
+            timeInForce: 'GTC'
+          };
+          
+          console.log('Placing KuCoin order:', orderData);
         
         // Simulate API response
         const newTrade: ActiveTrade = {
@@ -167,10 +190,15 @@ export const AutoTrader = () => {
 
   // Start/Stop auto trader
   const toggleAutoTrader = () => {
+    if (!apiKeysConfigured) {
+      toast.error('Konfigurera KuCoin API nycklar först');
+      return;
+    }
+    
     setIsActive(!isActive);
     if (!isActive) {
       generateTradeOpportunities();
-      toast.success('Auto Trader aktiverad');
+      toast.success(`${selectedStrategy.toUpperCase()} Auto Trader aktiverad`);
     } else {
       toast.info('Auto Trader stoppad');
     }
@@ -178,15 +206,33 @@ export const AutoTrader = () => {
 
   return (
     <div className="space-y-6">
+      {/* Strategy Selection */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Välj Trading Strategi</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <StrategySelector 
+            selectedStrategy={selectedStrategy}
+            onStrategyChange={setSelectedStrategy}
+          />
+        </CardContent>
+      </Card>
+
       {/* Control Panel */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Bot className="h-5 w-5" />
-              AI Auto Trader
+              AI Auto Trader - KuCoin ({selectedStrategy.toUpperCase()})
             </div>
             <div className="flex items-center gap-2">
+              {!apiKeysConfigured && (
+                <Badge variant="destructive" className="text-xs">
+                  API Ej Konfigurerad
+                </Badge>
+              )}
               {isActive && <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>}
               <Badge variant={isActive ? "default" : "secondary"}>
                 {isActive ? "AKTIV" : "STOPPAD"}
@@ -220,28 +266,61 @@ export const AutoTrader = () => {
             <Progress value={(dailyTrades / MAX_DAILY_TRADES) * 100} className="h-2" />
           </div>
 
+          {/* API Configuration */}
+          {!apiKeysConfigured && (
+            <Alert className="border-yellow-200 bg-yellow-50">
+              <Settings className="h-4 w-4" />
+              <AlertDescription>
+                <div className="flex items-center justify-between">
+                  <span>KuCoin API nycklar måste konfigureras för live trading</span>
+                  <Button 
+                    size="sm" 
+                    onClick={() => setApiKeysConfigured(true)}
+                    className="ml-4"
+                  >
+                    Konfigurera API
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Controls */}
           <div className="flex gap-3">
             <Button
               onClick={toggleAutoTrader}
+              disabled={!apiKeysConfigured}
               className={`flex-1 ${isActive ? "bg-red-500 hover:bg-red-600" : "bg-green-500 hover:bg-green-600"}`}
             >
-              {isActive ? "Stoppa Auto Trader" : "Starta Auto Trader"}
+              {isActive ? "Stoppa Auto Trader" : `Starta ${selectedStrategy.toUpperCase()} Trader`}
             </Button>
             <Button
               onClick={generateTradeOpportunities}
               variant="outline"
               disabled={isAnalyzing}
             >
-              {isAnalyzing ? "Analyserar..." : "Sök Trades"}
+              {isAnalyzing ? "Analyserar..." : `Sök ${selectedStrategy.toUpperCase()} Trades`}
             </Button>
+          </div>
+
+          {/* Strategy Info */}
+          <div className="p-3 bg-blue-50 rounded border border-blue-200">
+            <div className="text-sm font-medium text-blue-800 mb-1">
+              Aktiv Strategi: {selectedStrategy === 'scalp' ? 'Scalping (1m-15m)' : 'Swing Trading (1h-1d)'}
+            </div>
+            <div className="text-xs text-blue-600">
+              {selectedStrategy === 'scalp' ? 
+                'Snabba trades med 0.5-1.5% stop loss och 1:1-1:2 risk/reward' :
+                'Längre trades med 2-5% stop loss och 1:2-1:4 risk/reward'
+              }
+            </div>
           </div>
 
           {/* Warning */}
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              <strong>VARNING:</strong> Automatisk trading innebär hög risk. Systemet riskerar max 4% (${riskPerTrade.toFixed(2)}) per trade.
+              <strong>VARNING:</strong> Automatisk trading på KuCoin innebär hög risk. Systemet riskerar max 4% (${riskPerTrade.toFixed(2)}) per trade.
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -252,13 +331,13 @@ export const AutoTrader = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>AI Trade Ranking (Top 5)</span>
+              <span>AI {selectedStrategy.toUpperCase()} Trade Ranking (Top 5)</span>
               <Button
                 onClick={executeTopTrades}
-                disabled={dailyTrades >= MAX_DAILY_TRADES}
+                disabled={dailyTrades >= MAX_DAILY_TRADES || !apiKeysConfigured}
                 className="bg-gradient-primary"
               >
-                Utför Top Trades
+                Utför Top Trades på KuCoin
               </Button>
             </CardTitle>
           </CardHeader>

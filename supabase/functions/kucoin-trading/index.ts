@@ -39,10 +39,9 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get secrets
     const apiKey = Deno.env.get('KUCOIN_API_KEY');
-    const secretKey = Deno.env.get('KUCOIN_SECRET_KEY');
-    const passphrase = Deno.env.get('KUCOIN_PASSPHRASE');
+    const secretKey = Deno.env.get('KUCOIN_API_SECRET');
+    const passphrase = Deno.env.get('KUCOIN_API_PASSPHRASE');
 
     if (!apiKey || !secretKey || !passphrase) {
       return new Response(

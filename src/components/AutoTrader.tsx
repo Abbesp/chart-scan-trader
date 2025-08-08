@@ -42,7 +42,7 @@ export const AutoTrader = () => {
   const [tradeOpportunities, setTradeOpportunities] = useState<TradeOpportunity[]>([]);
   const [activeTrades, setActiveTrades] = useState<ActiveTrade[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [apiKeysConfigured, setApiKeysConfigured] = useState(false);
+  const [apiKeysConfigured, setApiKeysConfigured] = useState(true);
 
   const MAX_DAILY_TRADES = 5;
   const RISK_PERCENTAGE = 0.04; // 4%

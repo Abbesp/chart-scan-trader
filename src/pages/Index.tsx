@@ -12,7 +12,7 @@ import { PricePrediction } from '@/components/PricePrediction';
 import { CryptoNews } from '@/components/CryptoNews';
 import { SMCAnalysis } from '@/components/SMCAnalysis';
 import { ICTAnalysis } from '@/components/ICTAnalysis';
-import { DataImport } from '@/components/DataImport';
+
 import { AutoTradingSignals } from '@/components/AutoTradingSignals';
 import { AutoTrader } from '@/components/AutoTrader';
 import { toast } from 'sonner';
@@ -271,29 +271,6 @@ const Index = () => {
                 </section>
               )}
 
-              {/* Data Import */}
-              <section>
-                <DataImport 
-                  currency={selectedCurrency} 
-                  timeframe={selectedTimeframe}
-                  tradingType={selectedTradingType}
-                />
-              </section>
-
-              {/* Market News */}
-              <section>
-                <CryptoNews selectedCurrency={selectedCurrency} />
-              </section>
-
-              {/* SMC Analysis */}
-              <section>
-                <SMCAnalysis currency={selectedCurrency} timeframe={selectedTimeframe} />
-              </section>
-
-              {/* ICT Analysis */}
-              <section>
-                <ICTAnalysis currency={selectedCurrency} timeframe={selectedTimeframe} />
-              </section>
 
               {/* Analysis Results */}
               {analysisResult && (

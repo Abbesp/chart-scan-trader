@@ -51,9 +51,12 @@ serve(async (req) => {
       )
     }
 
-    const { action, orderData } = await req.json() as { 
-      action: 'place_order' | 'get_account' | 'get_market_data'; 
-      orderData?: KuCoinOrderRequest 
+    const { action, orderData, symbol, interval, tradingType } = await req.json() as { 
+      action: 'place_order' | 'get_account' | 'get_market_data' | 'get_kline_data'; 
+      orderData?: KuCoinOrderRequest;
+      symbol?: string;
+      interval?: string;
+      tradingType?: string;
     };
 
     const timestamp = Date.now().toString();
@@ -133,6 +136,25 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+    }
+
+    if (action === 'get_kline_data' && symbol && interval) {
+      // Get KuCoin K-line data
+      const klineUrl = `${baseUrl}/api/v1/market/candles?symbol=${symbol}&type=${interval}&startAt=${Math.floor(Date.now() / 1000) - 86400}&endAt=${Math.floor(Date.now() / 1000)}`;
+      
+      const response = await fetch(klineUrl);
+      const data = await response.json();
+      
+      if (data.code !== '200000') {
+        throw new Error('Failed to fetch KuCoin K-line data');
+      }
+      
+      return new Response(JSON.stringify({
+        klineData: data.data || [],
+        code: '200000'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     if (action === 'place_order' && orderData) {

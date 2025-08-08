@@ -133,9 +133,9 @@ const Index = () => {
                 <Brain className="h-8 w-8 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold">SnapTrader AI - MEXC</h1>
+                <h1 className="text-2xl font-bold">SnapTrader AI - KuCoin</h1>
                 <p className="text-muted-foreground">
-                  AI-Powered Crypto Chart Analysis & Trading Signals for MEXC Exchange
+                  AI-Powered Crypto Chart Analysis & Trading Signals for KuCoin Exchange
                 </p>
               </div>
             </div>
@@ -199,9 +199,9 @@ const Index = () => {
               {/* Market Selection */}
               <section>
                 <div className="mb-6">
-                  <h2 className="text-xl font-semibold mb-2">MEXC Crypto Trading</h2>
+                  <h2 className="text-xl font-semibold mb-2">KuCoin Crypto Trading</h2>
                   <p className="text-muted-foreground">
-                    Select crypto pair and timeframe for MEXC exchange analysis
+                    Select crypto pair and timeframe for KuCoin exchange analysis
                   </p>
                 </div>
                 <MarketSelector 
@@ -233,7 +233,7 @@ const Index = () => {
                 <div className="mb-6">
                   <h2 className="text-xl font-semibold mb-2">Automatiska Trading Signaler</h2>
                   <p className="text-muted-foreground">
-                    AI analyserar MEXC data kontinuerligt och genererar köp/sälj signaler automatiskt
+                    AI analyserar KuCoin data kontinuerligt och genererar köp/sälj signaler automatiskt
                   </p>
                 </div>
                 <AutoTradingSignals 
@@ -258,7 +258,7 @@ const Index = () => {
               {predictionResult && (
                 <section>
                   <div className="mb-6">
-                    <h2 className="text-xl font-semibold mb-2">MEXC Price Prediction</h2>
+                    <h2 className="text-xl font-semibold mb-2">KuCoin Price Prediction</h2>
                     <p className="text-muted-foreground">
                       AI-powered price prediction for {selectedCurrency}/USDT on {selectedTimeframe} timeframe
                     </p>

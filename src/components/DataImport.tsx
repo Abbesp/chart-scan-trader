@@ -5,12 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useState } from 'react';
 import { toast } from 'sonner';
-
-// MEXC API Keys - VARNING: Dessa bör flyttas till säker backend senare
-const MEXC_API_KEYS = {
-  secret: '4aab87c1d148494386ef5d5d191e9e20',
-  accessKey: 'mx0vglc20OzMqpRgDx'
-};
+import { supabase } from "@/integrations/supabase/client";
 
 interface DataImportProps {
   currency: string;
@@ -28,52 +23,35 @@ export const DataImport = ({ currency, timeframe, tradingType }: DataImportProps
     setImportProgress(0);
 
     try {
-      // Create MEXC API signature for authentication
-      const timestamp = Date.now();
-      const symbol = `${currency}USDT`;
-      
       setImportProgress(25);
-
-      // MEXC API endpoint
-      const baseUrl = tradingType === 'futures' 
-        ? 'https://contract.mexc.com/api/v1/contract/kline'
-        : 'https://api.mexc.com/api/v3/klines';
       
-      const params = new URLSearchParams({
-        symbol,
-        interval: timeframe,
-        limit: '100'
-      });
-
-      setImportProgress(50);
-
-      // Fetch data from MEXC
-      const response = await fetch(`${baseUrl}?${params}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
+      // Fetch data using KuCoin trading function
+      const { data, error } = await supabase.functions.invoke('kucoin-trading', {
+        body: { 
+          action: 'get_kline_data',
+          symbol: `${currency}-USDT`,
+          interval: timeframe,
+          tradingType: tradingType
         }
       });
 
-      if (!response.ok) {
-        throw new Error(`MEXC API Error: ${response.status}`);
-      }
-
-      const data = await response.json();
+      if (error) throw error;
+      
       setImportProgress(75);
 
-      // Simulate processing time
-      await new Promise(resolve => setTimeout(resolve, 500));
+      if (!data?.klineData || data.klineData.length === 0) {
+        throw new Error('Ingen data mottagen från KuCoin');
+      }
       
       setImportProgress(100);
       setLastImport(new Date());
       
-      toast.success(`Importerade ${data.length} datapunkter från MEXC API`);
-      console.log('MEXC Data:', data);
+      toast.success(`Importerade ${data.klineData.length} datapunkter från KuCoin API`);
+      console.log('KuCoin Data:', data.klineData);
       
     } catch (error) {
       console.error('Import error:', error);
-      toast.error('Fel vid import av data från MEXC API');
+      toast.error('Fel vid import av data från KuCoin API');
     } finally {
       setIsImporting(false);
     }
@@ -89,7 +67,7 @@ export const DataImport = ({ currency, timeframe, tradingType }: DataImportProps
               <Database className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold">MEXC Data Import</h3>
+              <h3 className="text-lg font-semibold">KuCoin Data Import</h3>
               <p className="text-sm text-muted-foreground">
                 Import real-time {currency}/USDT {tradingType} data
               </p>
@@ -104,7 +82,7 @@ export const DataImport = ({ currency, timeframe, tradingType }: DataImportProps
         <div className="grid grid-cols-3 gap-4">
           <div className="p-4 rounded-lg bg-secondary">
             <div className="text-sm text-muted-foreground">Data Source</div>
-            <div className="text-lg font-bold text-primary">MEXC API</div>
+            <div className="text-lg font-bold text-primary">KuCoin API</div>
           </div>
           <div className="p-4 rounded-lg bg-secondary">
             <div className="text-sm text-muted-foreground">Market Type</div>
@@ -162,10 +140,10 @@ export const DataImport = ({ currency, timeframe, tradingType }: DataImportProps
           <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <div className="text-sm font-medium">MEXC API Integration</div>
+              <div className="text-sm font-medium">KuCoin API Integration</div>
               <div className="text-sm text-muted-foreground">
-                För att importera riktig data behövs MEXC API-nycklar. 
-                Anslut till Supabase för säker hantering av API-nycklar.
+                Använder KuCoin API för att importera riktig marknadsdata. 
+                API-nycklar hanteras säkert via Supabase secrets.
               </div>
             </div>
           </div>

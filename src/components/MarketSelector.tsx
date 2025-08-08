@@ -19,8 +19,8 @@ interface MarketSelectorProps {
   onTradingTypeChange: (type: TradingType) => void;
 }
 
-// MEXC Top Cryptocurrencies
-const mexcCurrencies = [
+// KuCoin Top Cryptocurrencies
+const kucoinCurrencies = [
   { symbol: 'BTC', name: 'Bitcoin', volume: 'high', marketCap: 'large' },
   { symbol: 'ETH', name: 'Ethereum', volume: 'high', marketCap: 'large' },
   { symbol: 'BNB', name: 'BNB', volume: 'high', marketCap: 'large' },
@@ -109,7 +109,7 @@ export const MarketSelector = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [volumeFilter, setVolumeFilter] = useState<string>('all');
 
-  const filteredCurrencies = mexcCurrencies.filter(currency => {
+  const filteredCurrencies = kucoinCurrencies.filter(currency => {
     const matchesSearch = currency.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          currency.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesVolume = volumeFilter === 'all' || currency.volume === volumeFilter;
@@ -130,7 +130,7 @@ export const MarketSelector = ({
       <Card className="p-6">
         <h4 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <DollarSign className="h-5 w-5 text-primary" />
-          MEXC Trading Type
+          KuCoin Trading Type
         </h4>
         
         <div className="grid grid-cols-2 gap-4">

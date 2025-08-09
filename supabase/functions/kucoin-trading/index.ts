@@ -1,149 +1,115 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
+};
+
+const KUCOIN_API_KEY = Deno.env.get("KUCOIN_API_KEY") ?? "";
+const KUCOIN_API_SECRET = Deno.env.get("KUCOIN_API_SECRET") ?? "";
+const KUCOIN_API_PASSPHRASE = Deno.env.get("KUCOIN_API_PASSPHRASE") ?? "";
+
+if (!KUCOIN_API_KEY || !KUCOIN_API_SECRET || !KUCOIN_API_PASSPHRASE) {
+  console.error("❌ KuCoin API credentials are missing in environment variables.");
 }
 
-interface KuCoinOrderRequest {
-  symbol: string;
-  side: 'buy' | 'sell';
-  type: 'market' | 'limit';
-  size: string;
-  stopPrice?: string;
-}
-
-// KuCoin API signing function
-async function signRequest(timestamp: string, method: string, endpoint: string, body: string, secret: string) {
-  const message = timestamp + method + endpoint + body;
+// KuCoin request signing
+async function signRequest(
+  timestamp: string,
+  method: string,
+  endpoint: string,
+  body: string,
+  secret: string
+) {
+  const message = timestamp + method.toUpperCase() + endpoint + body;
   const key = await crypto.subtle.importKey(
-    'raw',
+    "raw",
     new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
+    { name: "HMAC", hash: "SHA-256" },
     false,
-    ['sign']
+    ["sign"]
   );
-  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message));
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
   return btoa(String.fromCharCode(...new Uint8Array(signature)));
 }
 
-// KuCoin passphrase encryption
-async function encryptPassphrase(passphrase: string, secret: string) {
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(passphrase));
-  return btoa(String.fromCharCode(...new Uint8Array(sig)));
-}
-
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const json = req.headers.get("content-type")?.includes("application/json")
+      ? await req.json()
+      : {};
+    const { symbol, side, type, size, stopPrice } = json as Record<string, any>;
 
-    const apiKey = Deno.env.get('KUCOIN_API_KEY');
-    const secretKey = Deno.env.get('KUCOIN_API_SECRET');
-    const rawPassphrase = Deno.env.get('KUCOIN_API_PASSPHRASE');
-
-    if (!apiKey || !secretKey || !rawPassphrase) {
-      return new Response(
-        JSON.stringify({ error: 'KuCoin API keys not configured' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    if (!symbol || !side || !type || !size) {
+      return new Response(JSON.stringify({ error: "Missing required order parameters (symbol, side, type, size)." }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
-
-    const passphrase = await encryptPassphrase(rawPassphrase, secretKey);
-
-    const { action, orderData, symbol, interval } = await req.json() as { 
-      action: 'place_order' | 'get_account' | 'get_market_data' | 'get_kline_data'; 
-      orderData?: KuCoinOrderRequest;
-      symbol?: string;
-      interval?: string;
-    };
 
     const timestamp = Date.now().toString();
-    const baseUrl = 'https://api.kucoin.com';
+    const endpoint = "/api/v1/orders";
+    const body = JSON.stringify({
+      symbol,
+      side,
+      type,
+      size,
+      ...(stopPrice ? { stopPrice } : {}),
+    });
 
-    if (action === 'get_account') {
-      const endpoint = '/api/v1/accounts';
-      const signature = await signRequest(timestamp, 'GET', endpoint, '', secretKey);
+    // Loggar begäran (utan nycklar)
+    console.log("📤 Sending order to KuCoin:", {
+      timestamp,
+      endpoint,
+      payload: JSON.parse(body)
+    });
 
-      const response = await fetch(`${baseUrl}${endpoint}`, {
-        method: 'GET',
-        headers: {
-          'KC-API-KEY': apiKey,
-          'KC-API-SIGN': signature,
-          'KC-API-TIMESTAMP': timestamp,
-          'KC-API-PASSPHRASE': passphrase,
-          'KC-API-KEY-VERSION': '2',
-          'Content-Type': 'application/json'
-        }
-      });
+    const signature = await signRequest(timestamp, "POST", endpoint, body, KUCOIN_API_SECRET);
+    const passphraseSig = await signRequest(timestamp, "POST", "", KUCOIN_API_PASSPHRASE, KUCOIN_API_SECRET);
 
-      const accountData = await response.json();
-      return new Response(JSON.stringify(accountData), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const kucoinRes = await fetch(`https://api.kucoin.com${endpoint}`, {
+      method: "POST",
+      headers: {
+        "KC-API-KEY": KUCOIN_API_KEY,
+        "KC-API-SIGN": signature,
+        "KC-API-TIMESTAMP": timestamp,
+        "KC-API-PASSPHRASE": passphraseSig,
+        "KC-API-KEY-VERSION": "2",
+        "Content-Type": "application/json",
+      },
+      body,
+    });
+
+    const resultText = await kucoinRes.text();
+    let result;
+    try {
+      result = JSON.parse(resultText);
+    } catch {
+      result = { raw: resultText };
     }
 
-    if (action === 'place_order' && orderData) {
-      const endpoint = '/api/v1/orders';
-      const body = JSON.stringify({
-        clientOid: `lovable_${Date.now()}`,
-        symbol: orderData.symbol,
-        side: orderData.side,
-        type: orderData.type,
-        size: orderData.size,
-        ...(orderData.stopPrice && { stop: 'loss', stopPrice: orderData.stopPrice })
-      });
+    // Loggar svar
+    console.log("📥 KuCoin response:", {
+      status: kucoinRes.status,
+      body: result
+    });
 
-      const signature = await signRequest(timestamp, 'POST', endpoint, body, secretKey);
-
-      const response = await fetch(`${baseUrl}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'KC-API-KEY': apiKey,
-          'KC-API-SIGN': signature,
-          'KC-API-TIMESTAMP': timestamp,
-          'KC-API-PASSPHRASE': passphrase,
-          'KC-API-KEY-VERSION': '2',
-          'Content-Type': 'application/json'
-        },
-        body: body
-      });
-
-      const orderResult = await response.json();
-
-      if (orderResult.code === '200000') {
-        await supabaseClient
-          .from('trading_orders')
-          .insert({
-            order_id: orderResult.data.orderId,
-            symbol: orderData.symbol,
-            side: orderData.side,
-            type: orderData.type,
-            size: orderData.size,
-            status: 'placed',
-            created_at: new Date().toISOString()
-          });
-      }
-
-      return new Response(JSON.stringify(orderResult), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-
-    return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-
+    return new Response(JSON.stringify({
+      status: kucoinRes.status,
+      kucoinResponse: result
+    }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (error) {
-    console.error('Error:', error);
-    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    console.error("❌ KuCoin API error:", error);
+    return new Response(JSON.stringify({ error: String(error) }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

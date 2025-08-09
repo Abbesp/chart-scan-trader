@@ -83,25 +83,38 @@ export const AutoTrader = () => {
     console.log('🚀 Starting trade analysis...');
     
     try {
-      // Get KuCoin market data
+      // First try KuCoin API
       console.log('📡 Calling KuCoin API...');
       const { data: marketData, error } = await supabase.functions.invoke('kucoin-trading', {
         body: { action: 'get_market_data' }
       });
 
       console.log('📊 KuCoin response:', { marketData, error });
-      if (error) {
-        console.error('❌ KuCoin API Error:', error);
-        throw error;
+      
+      let symbols, prices;
+      
+      if (error || !marketData?.symbols) {
+        // Fallback to demo data when API fails or rate limited
+        console.log('⚠️ Using demo data (API not available)');
+        symbols = ['BTC-USDT', 'ETH-USDT', 'ADA-USDT', 'SOL-USDT', 'MATIC-USDT'];
+        prices = {
+          'BTC-USDT': 43250 + (Math.random() - 0.5) * 1000,
+          'ETH-USDT': 2890 + (Math.random() - 0.5) * 200,
+          'ADA-USDT': 0.45 + (Math.random() - 0.5) * 0.1,
+          'SOL-USDT': 98 + (Math.random() - 0.5) * 20,
+          'MATIC-USDT': 0.85 + (Math.random() - 0.5) * 0.2
+        };
+        toast.info('📊 Använder demo-data (API rate limit)');
+      } else {
+        symbols = marketData.symbols;
+        prices = marketData.prices;
       }
-
-      const symbols = marketData?.symbols || ['SAND-USDT', 'BTC-USDT', 'ETH-USDT', 'ADA-USDT', 'SOL-USDT'];
       const opportunities: TradeOpportunity[] = [];
       const timeframes = getTimeframes();
       
       for (const [index, symbol] of symbols.entries()) {
-        // Get current price from KuCoin
-        const currentPrice = marketData?.prices?.[symbol] || Math.random() * 100;
+        // Get current price from data source (API or fallback)
+        const currentPrice = prices?.[symbol] || Math.random() * 100;
         
         // Check minimum order value (KuCoin usually 1 USDT minimum)
         const minOrderValue = 1.0; // USDT

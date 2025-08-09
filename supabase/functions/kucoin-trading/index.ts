@@ -2,20 +2,20 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
 };
 
+// Miljövariabler
 const KUCOIN_API_KEY = Deno.env.get("KUCOIN_API_KEY") ?? "";
 const KUCOIN_API_SECRET = Deno.env.get("KUCOIN_API_SECRET") ?? "";
 const KUCOIN_API_PASSPHRASE = Deno.env.get("KUCOIN_API_PASSPHRASE") ?? "";
 
-if (!KUCOIN_API_KEY || !KUCOIN_API_SECRET || !KUCOIN_API_PASSPHRASE) {
-  console.error("❌ KuCoin API credentials are missing in environment variables.");
+function missingEnv() {
+  return !KUCOIN_API_KEY || !KUCOIN_API_SECRET || !KUCOIN_API_PASSPHRASE;
 }
 
-// HMAC-signering för KuCoin
+// KuCoin request signing
 async function signRequest(
   timestamp: string,
   method: string,
@@ -31,11 +31,7 @@ async function signRequest(
     false,
     ["sign"]
   );
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(message)
-  );
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
   return btoa(String.fromCharCode(...new Uint8Array(signature)));
 }
 
@@ -45,23 +41,32 @@ serve(async (req) => {
   }
 
   try {
-    const json =
-      req.headers.get("content-type")?.includes("application/json")
-        ? await req.json()
-        : {};
+    const json = req.headers.get("content-type")?.includes("application/json")
+      ? await req.json()
+      : {};
     const { symbol, side, type, size, stopPrice } = json as Record<string, any>;
 
+    // Kolla miljövariabler
+    if (missingEnv()) {
+      console.error("❌ Saknar miljövariabler för KuCoin API!");
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Servern saknar KuCoin API-nycklar. Sätt KUCOIN_API_KEY, KUCOIN_API_SECRET, KUCOIN_API_PASSPHRASE."
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    // Validera param
     if (!symbol || !side || !type || !size) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "Missing required order parameters (symbol, side, type, size).",
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Missing required order parameters (symbol, side, type, size)."
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
     }
 
     const timestamp = Date.now().toString();
@@ -74,27 +79,10 @@ serve(async (req) => {
       ...(stopPrice ? { stopPrice } : {}),
     });
 
-    // Loggar begäran
-    console.log("📤 Sending order to KuCoin:", {
-      timestamp,
-      endpoint,
-      payload: JSON.parse(body),
-    });
+    console.log("📤 Sending order to KuCoin:", { endpoint, payload: JSON.parse(body) });
 
-    const signature = await signRequest(
-      timestamp,
-      "POST",
-      endpoint,
-      body,
-      KUCOIN_API_SECRET
-    );
-    const passphraseSig = await signRequest(
-      timestamp,
-      "POST",
-      "",
-      KUCOIN_API_PASSPHRASE,
-      KUCOIN_API_SECRET
-    );
+    const signature = await signRequest(timestamp, "POST", endpoint, body, KUCOIN_API_SECRET);
+    const passphraseSig = await signRequest(timestamp, "POST", "", KUCOIN_API_PASSPHRASE, KUCOIN_API_SECRET);
 
     const kucoinRes = await fetch(`https://api.kucoin.com${endpoint}`, {
       method: "POST",
@@ -117,28 +105,25 @@ serve(async (req) => {
       result = { raw: resultText };
     }
 
-    // Loggar svar
-    console.log("📥 KuCoin response:", {
+    console.log("📥 KuCoin response:", { status: kucoinRes.status, body: result });
+
+    return new Response(JSON.stringify({
+      success: kucoinRes.ok,
       status: kucoinRes.status,
-      body: result,
+      kucoinResponse: result
+    }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
 
-    return new Response(
-      JSON.stringify({
-        status: kucoinRes.status,
-        kucoinResponse: result,
-        error: result?.msg || null, // skickar med KuCoin felmeddelande till frontend
-      }),
-      {
-        status: kucoinRes.status,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
   } catch (error) {
-    console.error("❌ KuCoin API error:", error);
-    return new Response(JSON.stringify({ error: String(error) }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    console.error("❌ Server error:", error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: String(error)
+    }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
   }
 });

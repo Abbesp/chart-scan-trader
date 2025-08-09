@@ -80,14 +80,20 @@ export const AutoTrader = () => {
   // Get real KuCoin market data and generate opportunities
   const generateTradeOpportunities = async () => {
     setIsAnalyzing(true);
+    console.log('🚀 Starting trade analysis...');
     
     try {
       // Get KuCoin market data
+      console.log('📡 Calling KuCoin API...');
       const { data: marketData, error } = await supabase.functions.invoke('kucoin-trading', {
         body: { action: 'get_market_data' }
       });
 
-      if (error) throw error;
+      console.log('📊 KuCoin response:', { marketData, error });
+      if (error) {
+        console.error('❌ KuCoin API Error:', error);
+        throw error;
+      }
 
       const symbols = marketData?.symbols || ['SAND-USDT', 'BTC-USDT', 'ETH-USDT', 'ADA-USDT', 'SOL-USDT'];
       const opportunities: TradeOpportunity[] = [];

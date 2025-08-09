@@ -148,10 +148,16 @@ export const AutoTrader = () => {
       setIsAnalyzing(false);
       toast.success(`Analyserade ${opportunities.length} ${selectedStrategy} trading möjligheter från KuCoin`);
       
-    } catch (error) {
-      console.error('KuCoin market data error:', error);
+    } catch (error: any) {
+      console.error('💥 KuCoin market data error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+        supabaseError: error
+      });
       setIsAnalyzing(false);
-      toast.error('Fel vid hämtning av KuCoin marknadsdata');
+      toast.error(`❌ KuCoin Error: ${error.message || 'Fel vid hämtning av KuCoin marknadsdata'}`);
     }
   };
 

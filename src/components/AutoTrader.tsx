@@ -113,8 +113,8 @@ export const AutoTrader = () => {
       const timeframes = getTimeframes();
       
       for (const [index, symbol] of symbols.entries()) {
-        // Get current price from data source (API or fallback)
-        const currentPrice = prices?.[symbol] || Math.random() * 100;
+        // Get current price from KuCoin
+        const currentPrice = marketData?.prices?.[symbol] || Math.random() * 100;
         
         // Check minimum order value (KuCoin usually 1 USDT minimum)
         const minOrderValue = 1.0; // USDT

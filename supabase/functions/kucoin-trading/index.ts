@@ -51,7 +51,7 @@ serve(async (req) => {
     }
 
     const { action, orderData, symbol, interval } = await req.json() as { 
-      action: 'place_order' | 'get_account' | 'get_market_data' | 'get_kline_data'; 
+      action: 'place_order' | 'get_account' | 'get_market_data' | 'get_kline_data' | 'get_futures_account'; 
       orderData?: KuCoinOrderRequest;
       symbol?: string;
       interval?: string;
@@ -79,6 +79,39 @@ serve(async (req) => {
 
       const accountData = await response.json();
       return new Response(JSON.stringify(accountData), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // === GET FUTURES ACCOUNT INFO ===
+    if (action === 'get_futures_account') {
+      const endpoint = '/api/v1/account-overview?currency=USDT';
+      const signature = await signRequest(timestamp, 'GET', endpoint, '', secretKey);
+
+      const response = await fetch(`https://api-futures.kucoin.com${endpoint}`, {
+        method: 'GET',
+        headers: {
+          'KC-API-KEY': apiKey,
+          'KC-API-SIGN': signature,
+          'KC-API-TIMESTAMP': timestamp,
+          'KC-API-PASSPHRASE': passphrase,
+          'KC-API-KEY-VERSION': '2',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const futuresData = await response.json();
+      
+      if (futuresData.code === '200000' && futuresData.data) {
+        const balance = parseFloat(futuresData.data.accountEquity) || 0;
+        return new Response(JSON.stringify({
+          success: true,
+          balance: balance
+        }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      } else {
+        return new Response(JSON.stringify({
+          success: false,
+          errorMessage: futuresData.msg || 'Kunde inte hämta futures kontosaldo'
+        }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
     }
 
     // === GET MARKET DATA ===

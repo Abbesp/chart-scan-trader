@@ -37,23 +37,63 @@ interface ActiveTrade {
 export const AutoTrader = () => {
   const [isActive, setIsActive] = useState(false);
   const [dailyTrades, setDailyTrades] = useState(0);
-  const [accountBalance] = useState(22); // USDT
+  const [futuresBalance, setFuturesBalance] = useState(0); // USDT
   const [selectedStrategy, setSelectedStrategy] = useState<StrategyType>('swing');
   const [tradeOpportunities, setTradeOpportunities] = useState<TradeOpportunity[]>([]);
   const [activeTrades, setActiveTrades] = useState<ActiveTrade[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [apiKeysConfigured, setApiKeysConfigured] = useState(true);
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
 
   const MAX_DAILY_TRADES = 5;
   const RISK_PERCENTAGE = 0.04; // 4%
-  const riskPerTrade = accountBalance * RISK_PERCENTAGE; // 0.88 USDT
+  const LEVERAGE = 10; // 10x leverage
+  const riskPerTrade = futuresBalance * RISK_PERCENTAGE;
 
-  // Calculate position size based on risk
-  const calculatePositionSize = (entryPrice: number, stopLoss: number) => {
-    const riskDistance = Math.abs(entryPrice - stopLoss);
-    const positionSize = riskPerTrade / riskDistance;
-    return Math.min(positionSize, accountBalance * 0.8); // Max 80% of account
+  // Fetch futures balance from KuCoin
+  const fetchFuturesBalance = async () => {
+    setIsLoadingBalance(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('kucoin-trading', {
+        body: { action: 'get_futures_account' }
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (data.success && data.balance) {
+        setFuturesBalance(data.balance);
+        toast.success(`Futures saldo hämtat: $${data.balance.toFixed(2)} USDT`);
+      } else {
+        throw new Error(data.errorMessage || 'Kunde inte hämta futures saldo');
+      }
+    } catch (error: any) {
+      console.error('Futures balance error:', error);
+      toast.error(`Fel vid hämtning av futures saldo: ${error.message}`);
+    }
+    setIsLoadingBalance(false);
   };
+
+  // Calculate position size with leverage
+  const calculatePositionSize = (entryPrice: number, stopLoss: number) => {
+    const riskDistance = Math.abs(entryPrice - stopLoss) / entryPrice; // Risk as percentage
+    const positionValue = riskPerTrade / riskDistance; // Position value needed
+    const leveragedPositionSize = positionValue / entryPrice; // Actual size with leverage
+    
+    // Ensure we meet minimum order requirements
+    const minOrderValue = 1.0; // USDT
+    const minSize = minOrderValue / entryPrice;
+    
+    return Math.max(leveragedPositionSize, minSize);
+  };
+
+  // Load futures balance on component mount
+  useEffect(() => {
+    if (apiKeysConfigured) {
+      fetchFuturesBalance();
+    }
+  }, [apiKeysConfigured]);
 
   // AI scoring algorithm for trades
   const scoreTradeOpportunity = (opportunity: TradeOpportunity): number => {
@@ -292,14 +332,20 @@ export const AutoTrader = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Account Info */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <div className="text-center p-3 bg-blue-50 rounded">
-              <div className="text-xs text-muted-foreground">Kontosaldo</div>
-              <div className="font-bold text-blue-600">${accountBalance} USDT</div>
+              <div className="text-xs text-muted-foreground">Futures Saldo</div>
+              <div className="font-bold text-blue-600">
+                {isLoadingBalance ? 'Laddar...' : `$${futuresBalance.toFixed(2)} USDT`}
+              </div>
             </div>
             <div className="text-center p-3 bg-yellow-50 rounded">
-              <div className="text-xs text-muted-foreground">Risk/Trade</div>
+              <div className="text-xs text-muted-foreground">Risk/Trade (4%)</div>
               <div className="font-bold text-yellow-600">${riskPerTrade.toFixed(2)} USDT</div>
+            </div>
+            <div className="text-center p-3 bg-purple-50 rounded">
+              <div className="text-xs text-muted-foreground">Leverage</div>
+              <div className="font-bold text-purple-600">{LEVERAGE}x</div>
             </div>
             <div className="text-center p-3 bg-green-50 rounded">
               <div className="text-xs text-muted-foreground">Trades Idag</div>
@@ -338,8 +384,16 @@ export const AutoTrader = () => {
           {/* Controls */}
           <div className="flex gap-3">
             <Button
+              onClick={fetchFuturesBalance}
+              variant="outline"
+              disabled={isLoadingBalance}
+              className="px-3"
+            >
+              🔄
+            </Button>
+            <Button
               onClick={toggleAutoTrader}
-              disabled={!apiKeysConfigured}
+              disabled={!apiKeysConfigured || futuresBalance === 0}
               className={`flex-1 ${isActive ? "bg-red-500 hover:bg-red-600" : "bg-green-500 hover:bg-green-600"}`}
             >
               {isActive ? "Stoppa Auto Trader" : `Starta ${selectedStrategy.toUpperCase()} Trader`}
@@ -347,7 +401,7 @@ export const AutoTrader = () => {
             <Button
               onClick={generateTradeOpportunities}
               variant="outline"
-              disabled={isAnalyzing}
+              disabled={isAnalyzing || futuresBalance === 0}
             >
               {isAnalyzing ? "Analyserar..." : `Sök ${selectedStrategy.toUpperCase()} Trades`}
             </Button>
@@ -370,7 +424,7 @@ export const AutoTrader = () => {
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              <strong>VARNING:</strong> Automatisk trading på KuCoin innebär hög risk. Systemet riskerar max 4% (${riskPerTrade.toFixed(2)}) per trade.
+              <strong>VARNING:</strong> Automatisk futures trading på KuCoin med {LEVERAGE}x leverage innebär hög risk. Systemet riskerar max 4% (${riskPerTrade.toFixed(2)}) per trade.
             </AlertDescription>
           </Alert>
         </CardContent>

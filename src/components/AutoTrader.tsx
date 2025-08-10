@@ -47,7 +47,7 @@ export const AutoTrader = () => {
 
   const MAX_DAILY_TRADES = 5;
   const RISK_PERCENTAGE = 0.04; // 4%
-  const LEVERAGE = 10; // 10x leverage
+  
   const riskPerTrade = futuresBalance * RISK_PERCENTAGE;
 
   // Fetch futures balance from KuCoin
@@ -75,17 +75,29 @@ export const AutoTrader = () => {
     setIsLoadingBalance(false);
   };
 
-  // Calculate position size with leverage
+  // Calculate position size with dynamic leverage to satisfy minimum order value
+  // Returns 0 if min order would violate 4% risk cap
   const calculatePositionSize = (entryPrice: number, stopLoss: number) => {
-    const riskDistance = Math.abs(entryPrice - stopLoss) / entryPrice; // Risk as percentage
-    const positionValue = riskPerTrade / riskDistance; // Position value needed
-    const leveragedPositionSize = positionValue / entryPrice; // Actual size with leverage
-    
-    // Ensure we meet minimum order requirements
-    const minOrderValue = 1.0; // USDT
-    const minSize = minOrderValue / entryPrice;
-    
-    return Math.max(leveragedPositionSize, minSize);
+    const riskDistancePct = Math.abs(entryPrice - stopLoss) / entryPrice;
+    if (riskDistancePct <= 0) return 0;
+
+    const positionValueFromRisk = riskPerTrade / riskDistancePct; // notional based on 4% risk
+
+    const minOrderValue = 1.0; // USDT (approx KuCoin min notional)
+    if (positionValueFromRisk >= minOrderValue) {
+      // Risk-based size already meets min notional
+      return positionValueFromRisk / entryPrice;
+    }
+
+    // To meet min notional, required size is minOrderValue / entryPrice
+    // Check that this would not risk more than 4% of balance
+    const riskAtMinOrder = minOrderValue * riskDistancePct; // potential loss at SL
+    if (riskAtMinOrder > riskPerTrade) {
+      // Skip trade — cannot meet min order without breaking risk cap
+      return 0;
+    }
+
+    return minOrderValue / entryPrice;
   };
 
   // Load futures balance on component mount
@@ -156,12 +168,9 @@ export const AutoTrader = () => {
         // Get current price from KuCoin
         const currentPrice = marketData?.prices?.[symbol] || Math.random() * 100;
         
-        // Check minimum order value (KuCoin usually 1 USDT minimum)
-        const minOrderValue = 1.0; // USDT
-        const maxPositionSize = calculatePositionSize(currentPrice, currentPrice * 0.98);
-        
-        if (maxPositionSize * currentPrice < minOrderValue) {
-          continue; // Skip if we can't meet minimum order
+        const positionSize = calculatePositionSize(currentPrice, currentPrice * 0.98);
+        if (positionSize === 0) {
+          continue; // Skip if meeting min order would break 4% risk cap
         }
         
         const signal = Math.random() > 0.5 ? 'BUY' : 'SELL';
@@ -226,6 +235,10 @@ export const AutoTrader = () => {
     
     for (const trade of tradesToExecute) {
       const positionSize = calculatePositionSize(trade.entry_price, trade.stop_loss);
+      if (positionSize === 0) {
+        toast.warning(`Skippar ${trade.symbol} – minsta ordervärde skulle överskrida 4% risk`);
+        continue;
+      }
       
         // Real KuCoin API call
         try {
@@ -332,7 +345,7 @@ export const AutoTrader = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Account Info */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="text-center p-3 bg-blue-50 rounded">
               <div className="text-xs text-muted-foreground">Futures Saldo</div>
               <div className="font-bold text-blue-600">
@@ -342,10 +355,6 @@ export const AutoTrader = () => {
             <div className="text-center p-3 bg-yellow-50 rounded">
               <div className="text-xs text-muted-foreground">Risk/Trade (4%)</div>
               <div className="font-bold text-yellow-600">${riskPerTrade.toFixed(2)} USDT</div>
-            </div>
-            <div className="text-center p-3 bg-purple-50 rounded">
-              <div className="text-xs text-muted-foreground">Leverage</div>
-              <div className="font-bold text-purple-600">{LEVERAGE}x</div>
             </div>
             <div className="text-center p-3 bg-green-50 rounded">
               <div className="text-xs text-muted-foreground">Trades Idag</div>
@@ -424,7 +433,7 @@ export const AutoTrader = () => {
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              <strong>VARNING:</strong> Automatisk futures trading på KuCoin med {LEVERAGE}x leverage innebär hög risk. Systemet riskerar max 4% (${riskPerTrade.toFixed(2)}) per trade.
+              <strong>VARNING:</strong> Automatisk futures trading på KuCoin innebär hög risk. Systemet riskerar max 4% (${riskPerTrade.toFixed(2)}) per trade och justerar positioner för att uppfylla minsta ordervärde.
             </AlertDescription>
           </Alert>
         </CardContent>

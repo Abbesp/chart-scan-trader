@@ -28,6 +28,19 @@ async function signRequest(timestamp: string, method: string, endpoint: string, 
   return btoa(String.fromCharCode(...new Uint8Array(signature)));
 }
 
+// KuCoin API passphrase hashing for KEY-VERSION 2
+async function hashPassphrase(passphrase: string, secret: string) {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(passphrase));
+  return btoa(String.fromCharCode(...new Uint8Array(signature)));
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -42,6 +55,7 @@ serve(async (req) => {
     const apiKey = Deno.env.get('KUCOIN_API_KEY');
     const secretKey = Deno.env.get('KUCOIN_API_SECRET');
     const passphrase = Deno.env.get('KUCOIN_API_PASSPHRASE');
+    const hashedPassphrase = await hashPassphrase(passphrase, secretKey);
 
     if (!apiKey || !secretKey || !passphrase) {
       return new Response(JSON.stringify({
@@ -71,7 +85,7 @@ serve(async (req) => {
           'KC-API-KEY': apiKey,
           'KC-API-SIGN': signature,
           'KC-API-TIMESTAMP': timestamp,
-          'KC-API-PASSPHRASE': passphrase,
+          'KC-API-PASSPHRASE': hashedPassphrase,
           'KC-API-KEY-VERSION': '2',
           'Content-Type': 'application/json'
         }
@@ -92,7 +106,7 @@ serve(async (req) => {
           'KC-API-KEY': apiKey,
           'KC-API-SIGN': signature,
           'KC-API-TIMESTAMP': timestamp,
-          'KC-API-PASSPHRASE': passphrase,
+          'KC-API-PASSPHRASE': hashedPassphrase,
           'KC-API-KEY-VERSION': '2',
           'Content-Type': 'application/json'
         }
@@ -203,7 +217,7 @@ serve(async (req) => {
             'KC-API-KEY': apiKey,
             'KC-API-SIGN': signature,
             'KC-API-TIMESTAMP': timestamp,
-            'KC-API-PASSPHRASE': passphrase,
+            'KC-API-PASSPHRASE': hashedPassphrase,
             'KC-API-KEY-VERSION': '2',
             'Content-Type': 'application/json'
           },

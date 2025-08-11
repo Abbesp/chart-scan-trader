@@ -1,10 +1,10 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+}
 
 interface KuCoinOrderRequest {
   symbol: string;
@@ -14,6 +14,7 @@ interface KuCoinOrderRequest {
   stopPrice?: string;
 }
 
+// KuCoin API signing function
 async function signRequest(timestamp: string, method: string, endpoint: string, body: string, secret: string) {
   const message = timestamp + method + endpoint + body;
   const key = await crypto.subtle.importKey(
@@ -29,52 +30,133 @@ async function signRequest(timestamp: string, method: string, endpoint: string, 
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    )
 
     const apiKey = Deno.env.get('KUCOIN_API_KEY');
     const secretKey = Deno.env.get('KUCOIN_API_SECRET');
     const passphrase = Deno.env.get('KUCOIN_API_PASSPHRASE');
 
-    // Debug: se om API-nycklar saknas
     if (!apiKey || !secretKey || !passphrase) {
-      console.error("❌ API-nycklar saknas. Kontrollera miljövariabler.");
-      return new Response(JSON.stringify({
-        success: false,
-        errorMessage: 'KuCoin API keys not configured'
-      }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      console.error("Missing KuCoin API credentials", { apiKey, secretKey, passphrase });
+      return new Response(
+        JSON.stringify({ error: 'KuCoin API keys not configured' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    const { action, orderData, symbol, interval } = await req.json();
+    const { action, orderData, symbol, interval } = await req.json() as { 
+      action: 'place_order' | 'get_account' | 'get_market_data' | 'get_kline_data'; 
+      orderData?: KuCoinOrderRequest;
+      symbol?: string;
+      interval?: string;
+    };
 
     const timestamp = Date.now().toString();
     const baseUrl = 'https://api.kucoin.com';
 
+    // === GET ACCOUNT ===
+    if (action === 'get_account') {
+      const endpoint = '/api/v1/accounts';
+      const signature = await signRequest(timestamp, 'GET', endpoint, '', secretKey);
+
+      const response = await fetch(`${baseUrl}${endpoint}`, {
+        method: 'GET',
+        headers: {
+          'KC-API-KEY': apiKey,
+          'KC-API-SIGN': signature,
+          'KC-API-TIMESTAMP': timestamp,
+          'KC-API-PASSPHRASE': passphrase,
+          'KC-API-KEY-VERSION': '2',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      return new Response(await response.text(), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // === GET MARKET DATA ===
+    if (action === 'get_market_data') {
+      const symbolsEndpoint = '/api/v1/symbols';
+      const tickerEndpoint = '/api/v1/market/allTickers';
+      try {
+        const symbolsResponse = await fetch(`${baseUrl}${symbolsEndpoint}`);
+        const symbolsData = await symbolsResponse.json();
+
+        const tickerResponse = await fetch(`${baseUrl}${tickerEndpoint}`);
+        const tickerData = await tickerResponse.json();
+
+        const usdtSymbols = symbolsData.data?.filter((s: any) => 
+          s.quoteCurrency === 'USDT' && s.isMarginEnabled && s.enableTrading
+        )?.slice(0, 8)?.map((s: any) => s.symbol) || [];
+
+        const prices: { [key: string]: number } = {};
+        tickerData.data?.ticker?.forEach((ticker: any) => {
+          if (usdtSymbols.includes(ticker.symbol)) {
+            prices[ticker.symbol] = parseFloat(ticker.last);
+          }
+        });
+
+        return new Response(JSON.stringify({
+          symbols: usdtSymbols,
+          prices: prices,
+          code: '200000'
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+
+      } catch (err) {
+        console.error("Market data error", err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
+    // === GET KLINE DATA ===
+    if (action === 'get_kline_data' && symbol && interval) {
+      const klineUrl = `${baseUrl}/api/v1/market/candles?symbol=${symbol}&type=${interval}&startAt=${Math.floor(Date.now() / 1000) - 86400}&endAt=${Math.floor(Date.now() / 1000)}`;
+      const response = await fetch(klineUrl);
+      const data = await response.json();
+
+      return new Response(JSON.stringify({
+        klineData: data.data || [],
+        code: data.code
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // === PLACE ORDER ===
     if (action === 'place_order' && orderData) {
       try {
-        // Hämta minsta orderstorlek för symbolen
-        const symbolsRes = await fetch(`${baseUrl}/api/v1/symbols`);
-        const symbolsJson = await symbolsRes.json();
-        const symbolInfo = symbolsJson.data?.find((s: any) => s.symbol === orderData.symbol);
-
+        // Hämta minsta orderstorlek
+        const symbolsResponse = await fetch(`${baseUrl}/api/v1/symbols`);
+        const symbolsData = await symbolsResponse.json();
+        const symbolInfo = symbolsData.data.find((s: any) => s.symbol === orderData.symbol);
         if (!symbolInfo) {
-          return new Response(JSON.stringify({
-            success: false,
-            errorMessage: `Symbol ${orderData.symbol} not found`
-          }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+          return new Response(JSON.stringify({ error: `Symbol ${orderData.symbol} not found` }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
         }
 
-        const minSize = parseFloat(symbolInfo.baseMinSize);
         let orderSize = parseFloat(orderData.size);
-
+        const minSize = parseFloat(symbolInfo.baseMinSize);
         if (orderSize < minSize) {
-          console.log(`ℹ Justerar orderstorlek från ${orderSize} till minsta tillåtna ${minSize}`);
+          console.log(`Adjusting order size from ${orderSize} to min size ${minSize}`);
           orderSize = minSize;
         }
 
@@ -100,51 +182,50 @@ serve(async (req) => {
             'KC-API-KEY-VERSION': '2',
             'Content-Type': 'application/json'
           },
-          body
+          body: body
         });
 
         const orderResult = await response.json();
 
-        if (orderResult.code !== '200000') {
-          return new Response(JSON.stringify({
-            success: false,
-            errorMessage: orderResult.msg || 'Order failed',
-            kucoinResponse: orderResult
-          }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        if (orderResult.code === '200000') {
+          await supabaseClient.from('trading_orders').insert({
+            order_id: orderResult.data.orderId,
+            symbol: orderData.symbol,
+            side: orderData.side,
+            type: orderData.type,
+            size: orderSize.toString(),
+            status: 'placed',
+            created_at: new Date().toISOString()
+          });
+        } else {
+          console.error("KuCoin order error", orderResult);
         }
 
-        await supabaseClient.from('trading_orders').insert({
-          order_id: orderResult.data.orderId,
-          symbol: orderData.symbol,
-          side: orderData.side,
-          type: orderData.type,
-          size: orderSize,
-          status: 'placed',
-          created_at: new Date().toISOString()
+        return new Response(JSON.stringify(orderResult), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
 
-        return new Response(JSON.stringify({
-          success: true,
-          order: orderResult.data
-        }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-
       } catch (err) {
-        return new Response(JSON.stringify({
-          success: false,
-          errorMessage: err.message
-        }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        console.error("Place order error", err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
       }
     }
 
-    return new Response(JSON.stringify({
-      success: false,
-      errorMessage: 'Invalid action'
-    }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    // === DEFAULT ===
+    return new Response(JSON.stringify({ error: 'Invalid action' }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
 
   } catch (error) {
-    return new Response(JSON.stringify({
-      success: false,
-      errorMessage: error.message
-    }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    console.error('Error:', error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
 });

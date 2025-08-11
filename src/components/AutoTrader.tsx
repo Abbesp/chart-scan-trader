@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import { Bot, TrendingUp, AlertTriangle, DollarSign, BarChart3, Settings } from 
 import { toast } from "sonner";
 import { StrategySelector, StrategyType } from './StrategySelector';
 import { supabase } from "@/integrations/supabase/client";
+import { Input } from "@/components/ui/input";
 
 interface TradeOpportunity {
   id: string;
@@ -37,43 +38,19 @@ interface ActiveTrade {
 export const AutoTrader = () => {
   const [isActive, setIsActive] = useState(false);
   const [dailyTrades, setDailyTrades] = useState(0);
-  const [futuresBalance, setFuturesBalance] = useState(0); // USDT
+  const [manualCapital, setManualCapital] = useState(0); // USDT (manual)
   const [selectedStrategy, setSelectedStrategy] = useState<StrategyType>('swing');
   const [tradeOpportunities, setTradeOpportunities] = useState<TradeOpportunity[]>([]);
   const [activeTrades, setActiveTrades] = useState<ActiveTrade[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [apiKeysConfigured, setApiKeysConfigured] = useState(true);
-  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+  
 
   const MAX_DAILY_TRADES = 5;
   const RISK_PERCENTAGE = 0.04; // 4%
   
-  const riskPerTrade = futuresBalance * RISK_PERCENTAGE;
+  const riskPerTrade = manualCapital * RISK_PERCENTAGE;
 
-  // Fetch futures balance from KuCoin
-  const fetchFuturesBalance = async () => {
-    setIsLoadingBalance(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('kucoin-trading', {
-        body: { action: 'get_futures_account' }
-      });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      if (data.success && data.balance) {
-        setFuturesBalance(data.balance);
-        toast.success(`Futures saldo hämtat: $${data.balance.toFixed(2)} USDT`);
-      } else {
-        throw new Error(data.errorMessage || 'Kunde inte hämta futures saldo');
-      }
-    } catch (error: any) {
-      console.error('Futures balance error:', error);
-      toast.error(`Fel vid hämtning av futures saldo: ${error.message}`);
-    }
-    setIsLoadingBalance(false);
-  };
 
   // Calculate position size with dynamic leverage to satisfy minimum order value
   // Returns 0 if min order would violate 4% risk cap
@@ -100,12 +77,6 @@ export const AutoTrader = () => {
     return minOrderValue / entryPrice;
   };
 
-  // Load futures balance on component mount
-  useEffect(() => {
-    if (apiKeysConfigured) {
-      fetchFuturesBalance();
-    }
-  }, [apiKeysConfigured]);
 
   // AI scoring algorithm for trades
   const scoreTradeOpportunity = (opportunity: TradeOpportunity): number => {
@@ -344,13 +315,19 @@ export const AutoTrader = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Account Info */}
+          {/* Kapital och status */}
           <div className="grid grid-cols-3 gap-4">
-            <div className="text-center p-3 bg-blue-50 rounded">
-              <div className="text-xs text-muted-foreground">Futures Saldo</div>
-              <div className="font-bold text-blue-600">
-                {isLoadingBalance ? 'Laddar...' : `$${futuresBalance.toFixed(2)} USDT`}
-              </div>
+            <div className="p-3 bg-blue-50 rounded">
+              <div className="text-xs text-muted-foreground mb-1">Kapital (manuellt)</div>
+              <Input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={manualCapital}
+                onChange={(e) => setManualCapital(Number(e.target.value) || 0)}
+              />
+              <div className="text-xs text-blue-600 mt-1">Används för 4% risk</div>
             </div>
             <div className="text-center p-3 bg-yellow-50 rounded">
               <div className="text-xs text-muted-foreground">Risk/Trade (4%)</div>
@@ -393,16 +370,8 @@ export const AutoTrader = () => {
           {/* Controls */}
           <div className="flex gap-3">
             <Button
-              onClick={fetchFuturesBalance}
-              variant="outline"
-              disabled={isLoadingBalance}
-              className="px-3"
-            >
-              🔄
-            </Button>
-            <Button
               onClick={toggleAutoTrader}
-              disabled={!apiKeysConfigured || futuresBalance === 0}
+              disabled={!apiKeysConfigured || manualCapital <= 0}
               className={`flex-1 ${isActive ? "bg-red-500 hover:bg-red-600" : "bg-green-500 hover:bg-green-600"}`}
             >
               {isActive ? "Stoppa Auto Trader" : `Starta ${selectedStrategy.toUpperCase()} Trader`}
@@ -410,7 +379,7 @@ export const AutoTrader = () => {
             <Button
               onClick={generateTradeOpportunities}
               variant="outline"
-              disabled={isAnalyzing || futuresBalance === 0}
+              disabled={isAnalyzing || manualCapital <= 0}
             >
               {isAnalyzing ? "Analyserar..." : `Sök ${selectedStrategy.toUpperCase()} Trades`}
             </Button>

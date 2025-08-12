@@ -29,6 +29,19 @@ async function signRequest(timestamp: string, method: string, endpoint: string, 
   return btoa(String.fromCharCode(...new Uint8Array(signature)));
 }
 
+// Hash KuCoin passphrase for v2 (HMAC-SHA256 base64)
+async function hashPassphrase(passphrase: string, secret: string) {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const digest = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(passphrase));
+  return btoa(String.fromCharCode(...new Uint8Array(digest)));
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -66,6 +79,7 @@ serve(async (req) => {
     if (action === 'get_account') {
       const endpoint = '/api/v1/accounts';
       const signature = await signRequest(timestamp, 'GET', endpoint, '', secretKey);
+      const hashedPassphrase = await hashPassphrase(passphrase, secretKey);
 
       const response = await fetch(`${baseUrl}${endpoint}`, {
         method: 'GET',
@@ -73,7 +87,7 @@ serve(async (req) => {
           'KC-API-KEY': apiKey,
           'KC-API-SIGN': signature,
           'KC-API-TIMESTAMP': timestamp,
-          'KC-API-PASSPHRASE': passphrase,
+          'KC-API-PASSPHRASE': hashedPassphrase,
           'KC-API-KEY-VERSION': '2',
           'Content-Type': 'application/json'
         }
@@ -137,6 +151,7 @@ serve(async (req) => {
       });
 
       const signature = await signRequest(timestamp, 'POST', endpoint, body, secretKey);
+      const hashedPassphrase = await hashPassphrase(passphrase, secretKey);
 
       const response = await fetch(`${baseUrl}${endpoint}`, {
         method: 'POST',
@@ -144,7 +159,7 @@ serve(async (req) => {
           'KC-API-KEY': apiKey,
           'KC-API-SIGN': signature,
           'KC-API-TIMESTAMP': timestamp,
-          'KC-API-PASSPHRASE': passphrase,
+          'KC-API-PASSPHRASE': hashedPassphrase,
           'KC-API-KEY-VERSION': '2',
           'Content-Type': 'application/json'
         },

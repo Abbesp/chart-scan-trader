@@ -6,6 +6,7 @@ import { TrendingUp, TrendingDown, BarChart3, Play, Pause, RefreshCw, AlertCircl
 import { useToast } from "@/hooks/use-toast";
 
 import { supabase } from "@/integrations/supabase/client";
+import tradingChart from '@/assets/trading-chart.jpg';
 
 interface TradingSignal {
   id: string;
@@ -158,9 +159,10 @@ export const AutoTradingSignals: React.FC<AutoTradingSignalsProps> = ({
             {/* Chart Image */}
             <div className="mb-4">
               <img 
-                src="/src/assets/trading-chart.jpg" 
-                alt="Trading Chart" 
+                src={tradingChart} 
+                alt="KuCoin trading chart preview" 
                 className="w-full h-48 object-cover rounded-lg border"
+                loading="lazy"
               />
             </div>
             

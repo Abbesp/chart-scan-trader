@@ -12,8 +12,10 @@ interface KuCoinOrderRequest {
   type: 'market' | 'limit';
   size: string;
   stopPrice?: string;
+  leverage?: string;
 }
 
+// KuCoin signering
 async function signRequest(timestamp: string, method: string, endpoint: string, body: string, secret: string) {
   const message = timestamp + method + endpoint + body;
   const key = await crypto.subtle.importKey(
@@ -41,27 +43,26 @@ serve(async (req) => {
     const apiKey = Deno.env.get('KUCOIN_API_KEY');
     const secretKey = Deno.env.get('KUCOIN_API_SECRET');
     const passphrase = Deno.env.get('KUCOIN_API_PASSPHRASE');
+    const baseUrl = 'https://api.kucoin.com';
 
     if (!apiKey || !secretKey || !passphrase) {
       return new Response(
-        JSON.stringify({ errorMessage: 'KuCoin API keys not configured' }),
+        JSON.stringify({ error: 'KuCoin API keys not configured' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { action, orderData, symbol, interval } = await req.json() as { 
-      action: 'place_order' | 'get_account' | 'get_market_data' | 'get_kline_data'; 
+    const { action, orderData, symbol, interval, tradingType } = await req.json() as {
+      action: 'place_order' | 'get_account' | 'get_market_data' | 'get_kline_data';
       orderData?: KuCoinOrderRequest;
       symbol?: string;
       interval?: string;
+      tradingType?: 'spot' | 'futures';
     };
 
     const timestamp = Date.now().toString();
-    const baseUrl = 'https://api.kucoin.com';
 
-    // ========================
-    // GET ACCOUNT
-    // ========================
+    // Hämta konto-info
     if (action === 'get_account') {
       const endpoint = '/api/v1/accounts';
       const signature = await signRequest(timestamp, 'GET', endpoint, '', secretKey);
@@ -78,108 +79,60 @@ serve(async (req) => {
         }
       });
 
-      const accountData = await response.json();
-      return new Response(JSON.stringify(accountData), {
+      return new Response(await response.text(), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    // ========================
-    // GET MARKET DATA
-    // ========================
+    // Hämta marknadsdata
     if (action === 'get_market_data') {
       const symbolsEndpoint = '/api/v1/symbols';
       const tickerEndpoint = '/api/v1/market/allTickers';
 
-      try {
-        const symbolsResponse = await fetch(`${baseUrl}${symbolsEndpoint}`);
-        const symbolsData = await symbolsResponse.json();
+      const [symbolsRes, tickerRes] = await Promise.all([
+        fetch(`${baseUrl}${symbolsEndpoint}`),
+        fetch(`${baseUrl}${tickerEndpoint}`)
+      ]);
 
-        const tickerResponse = await fetch(`${baseUrl}${tickerEndpoint}`);
-        const tickerData = await tickerResponse.json();
+      const symbolsData = await symbolsRes.json();
+      const tickerData = await tickerRes.json();
 
-        const usdtSymbols = symbolsData.data?.filter((s: any) => 
-          s.quoteCurrency === 'USDT' && 
-          s.isMarginEnabled && 
-          s.enableTrading
-        )?.slice(0, 8)?.map((s: any) => s.symbol) || [];
-
-        const prices: { [key: string]: number } = {};
-        tickerData.data?.ticker?.forEach((ticker: any) => {
-          if (usdtSymbols.includes(ticker.symbol)) {
-            prices[ticker.symbol] = parseFloat(ticker.last);
-          }
-        });
-
-        return new Response(JSON.stringify({
-          symbols: usdtSymbols,
-          prices: prices,
-          code: '200000'
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-
-      } catch (error) {
-        return new Response(
-          JSON.stringify({ errorMessage: error.message }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+      return new Response(
+        JSON.stringify({ symbols: symbolsData.data, prices: tickerData.data?.ticker || [] }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // ========================
-    // GET KLINE DATA
-    // ========================
+    // Hämta K-line
     if (action === 'get_kline_data' && symbol && interval) {
       const klineUrl = `${baseUrl}/api/v1/market/candles?symbol=${symbol}&type=${interval}&startAt=${Math.floor(Date.now() / 1000) - 86400}&endAt=${Math.floor(Date.now() / 1000)}`;
       const response = await fetch(klineUrl);
       const data = await response.json();
-      return new Response(JSON.stringify({
-        klineData: data.data || [],
-        code: data.code
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify(data), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-    // ========================
-    // PLACE ORDER
-    // ========================
+    // Placera order
     if (action === 'place_order' && orderData) {
-      // 1. Hämta symbolinfo
-      const symbolsResponse = await fetch(`${baseUrl}/api/v1/symbols`);
-      const symbolsData = await symbolsResponse.json();
-      const symbolInfo = symbolsData.data?.find((s: any) => s.symbol === orderData.symbol);
+      // Hämta min orderstorlek från symbolinfo
+      const symbolInfoRes = await fetch(`${baseUrl}/api/v1/symbols`);
+      const symbolInfoData = await symbolInfoRes.json();
+      const symbolInfo = symbolInfoData.data.find((s: any) => s.symbol === orderData.symbol);
 
-      if (!symbolInfo) {
-        return new Response(JSON.stringify({ errorMessage: `Symbol ${orderData.symbol} not found on KuCoin` }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+      let finalSize = parseFloat(orderData.size);
+      if (symbolInfo && parseFloat(symbolInfo.baseMinSize) > finalSize) {
+        finalSize = parseFloat(symbolInfo.baseMinSize);
       }
 
-      const minSize = parseFloat(symbolInfo.baseMinSize);
-      const sizeNum = parseFloat(orderData.size);
-      const sizeDecimals = (orderData.size.split('.')[1]?.length || 0);
-
-      // 2. Kontrollera storlek & precision
-      if (sizeNum < minSize) {
-        return new Response(JSON.stringify({ errorMessage: `Minsta storlek för ${orderData.symbol} är ${minSize}` }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      if (sizeDecimals > symbolInfo.baseIncrement.split('.')[1]?.length) {
-        return new Response(JSON.stringify({ errorMessage: `För många decimaler för ${orderData.symbol}` }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // 3. Skicka ordern
       const endpoint = '/api/v1/orders';
       const body = JSON.stringify({
-        clientOid: `lovable_${Date.now()}`,
+        clientOid: `order_${Date.now()}`,
         symbol: orderData.symbol,
         side: orderData.side,
         type: orderData.type,
-        size: orderData.size,
+        size: finalSize.toString(),
+        leverage: orderData.leverage || '1',
         ...(orderData.stopPrice && { stop: 'loss', stopPrice: orderData.stopPrice })
       });
 
@@ -195,40 +148,27 @@ serve(async (req) => {
           'KC-API-KEY-VERSION': '2',
           'Content-Type': 'application/json'
         },
-        body: body
+        body
       });
 
       const orderResult = await response.json();
+      console.log('KuCoin order response:', orderResult);
 
-      if (orderResult.code !== '200000') {
-        return new Response(JSON.stringify({ errorMessage: orderResult.msg || 'Unknown KuCoin error' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // 4. Spara i databasen
-      await supabaseClient.from('trading_orders').insert({
-        order_id: orderResult.data.orderId,
-        symbol: orderData.symbol,
-        side: orderData.side,
-        type: orderData.type,
-        size: orderData.size,
-        status: 'placed',
-        created_at: new Date().toISOString()
-      });
-
-      return new Response(JSON.stringify({ success: true, data: orderResult.data }), {
+      return new Response(JSON.stringify(orderResult), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    return new Response(JSON.stringify({ errorMessage: 'Invalid action' }), {
-      status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    return new Response(
+      JSON.stringify({ error: 'Invalid action' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
 
-  } catch (error) {
-    return new Response(JSON.stringify({ errorMessage: error.message }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+  } catch (err) {
+    console.error('Error:', err);
+    return new Response(
+      JSON.stringify({ error: err.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 });

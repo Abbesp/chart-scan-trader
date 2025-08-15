@@ -157,17 +157,18 @@ export const CryptoNews = ({ selectedCurrency }: CryptoNewsProps) => {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-1">
-                {news.relevantCoins.map((coin) => (
-                  <Badge 
-                    key={coin} 
-                    variant="outline" 
-                    className={`text-xs ${coin === selectedCurrency ? 'border-primary text-primary' : ''}`}
-                  >
-                    {coin}
-                  </Badge>
-                ))}
-              </div>
+           <div className="flex flex-wrap gap-1">
+  {news.relevantCoins.map((coin) => (
+    <Badge 
+      key={typeof coin === "string" ? coin : coin.symbol} 
+      variant="outline" 
+      className={`text-xs ${ (typeof coin === "string" ? coin : coin.symbol) === selectedCurrency ? 'border-primary text-primary' : ''}`}
+    >
+      {typeof coin === "string" ? coin : coin.symbol}
+    </Badge>
+  ))}
+</div>
+
             </div>
           </Card>
         ))}
